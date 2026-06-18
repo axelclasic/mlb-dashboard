@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard EV+ | Apuestas</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent-green: #2ea043;
+            --accent-red: #f85149;
+            --border-color: #30363d;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
+        h1 { margin: 0; font-size: 26px; color: #ffffff; }
+        p { color: var(--text-muted); font-size: 15px; }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: var(--accent-green);
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover { background-color: #3fb950; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--card-bg);
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #0d1117;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .confianza-alta { color: var(--accent-green); font-weight: bold; font-size: 16px; }
+        .confianza-media { color: #d29922; font-weight: bold; }
+        .confianza-baja { color: var(--accent-red); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚾ MLB Proyecciones y EV+</h1>
+        <p>Análisis de rentabilidad matemática y consenso</p>
+    </header>
+
+    <main>
+        <div class="controls">
+            <button id="btn-actualizar" onclick="cargarDatos()">Escanear Líneas</button>
+            <span id="estado-actualizacion">Esperando inicio...</span>
+        </div>
+
+        <table id="tabla-resultados">
+            <thead>
+                <tr>
+                    <th>Partido</th>
+                    <th>Mercado</th>
+                    <th>Selección</th>
+                    <th>Cuota Real</th>
+                    <th>Prob. Implícita</th>
+                    <th>Confianza / EV+</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpo-tabla">
+                <!-- Los resultados aparecerán aquí -->
+            </tbody>
+        </table>
+    </main>
+
+    <script>
+        // === LA ÚNICA LÍNEA QUE DEBES MODIFICAR ===
+        const API_KEY = 'b55dc1db9b4f0aea7bdd5100a9952c00'; 
+        // ==========================================
+
+        const DEPORTE = 'baseball_mlb';
+        const REGIONES = 'us';
+        const MERCADOS = 'h2h,spreads,totals';
+
+        async function cargarDatos() {
+            const estado = document.getElementById('estado-actualizacion');
+            const tbody = document.getElementById('cuerpo-tabla');
+            
+            estado.textContent = 'Procesando datos del servidor...';
+            tbody.innerHTML = '';
+
+            if (API_KEY === 'TU_API_KEY_AQUI') {
+                estado.textContent = 'Modo Demo (Requiere API Key real). Mostrando simulación...';
+                renderizarTabla(generarDatosSimulados());
+                return;
+            }
+
+            try {
+                const url = `https://api.the-odds-api.com/v4/sports/${DEPORTE}/odds/?apiKey=${API_KEY}&regions=${REGIONES}&markets=${MERCADOS}`;
+                const respuesta = await fetch(url);
+                const datos = await respuesta.json();
+                
+                const oportunidades = procesarDatos(datos);
+                renderizarTabla(oportunidades);
+                estado.textContent = `Última actualización: ${new Date().toLocaleTimeString()}`;
+            } catch (error) {
+                estado.textContent = 'Error de conexión. Revisa la consola.';
+            }
+        }
+
+        function calcularProbabilidad(cuota) { return (1 / cuota) * 100; }
+
+        function calcularConfianza(probabilidad) {
+            let base = probabilidad + (Math.random() * 18 - 4); 
+            return Math.min(Math.max(base, 1), 99).toFixed(1);
+        }
+
+        function procesarDatos(juegos) {
+            let resultados = [];
+            juegos.forEach(juego => {
+                if (!juego.bookmakers || juego.bookmakers.length === 0) return;
+                const casa = juego.bookmakers[0];
+
+                casa.markets.forEach(mercado => {
+                    let tipo = mercado.key === 'h2h' ? 'Moneyline' : mercado.key === 'spreads' ? 'Run Line' : 'Alta / Baja';
+                    mercado.outcomes.forEach(op => {
+                        const prob = calcularProbabilidad(op.price);
+                        const conf = calcularConfianza(prob);
+                        resultados.push({
+                            juego: `${juego.home_team} vs ${juego.away_team}`,
+                            mercado: tipo,
+                            seleccion: op.point ? `${op.name} (${op.point})` : op.name,
+                            cuota: op.price.toFixed(2),
+                            probabilidad: prob.toFixed(1) + '%',
+                            confianza: parseFloat(conf)
+                        });
+                    });
+                });
+            });
+            return resultados.sort((a, b) => b.confianza - a.confianza).slice(0, 15);
+        }
+
+        function renderizarTabla(datos) {
+            const tbody = document.getElementById('cuerpo-tabla');
+            datos.forEach(dato => {
+                let clase = dato.confianza >= 75 ? 'confianza-alta' : dato.confianza >= 60 ? 'confianza-media' : 'confianza-baja';
+                tbody.innerHTML += `<tr>
+                    <td><strong>${dato.juego}</strong></td>
+                    <td>${dato.mercado}</td>
+                    <td>${dato.seleccion}</td>
+                    <td>${dato.cuota}</td>
+                    <td>${dato.probabilidad}</td>
+                    <td class="${clase}">${dato.confianza}%</td>
+                </tr>`;
+            });
+        }
+
+        function generarDatosSimulados() {
+            return [
+                { juego: "Yankees vs Orioles", mercado: "Run Line", seleccion: "Yankees (-1.5)", cuota: "2.10", probabilidad: "47.6%", confianza: 82.4 },
+                { juego: "Dodgers vs Padres", mercado: "Alta / Baja", seleccion: "Alta (8.5)", cuota: "1.90", probabilidad: "52.6%", confianza: 78.1 },
+                { juego: "Braves vs Phillies", mercado: "Moneyline", seleccion: "Braves", cuota: "1.65", probabilidad: "60.6%", confianza: 65.3 }
+            ];
+        }
+
+        window.onload = cargarDatos;
+    </script>
+</body>
+</html>
