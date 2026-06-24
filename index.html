@@ -150,7 +150,6 @@
             gap: 4px;
         }
 
-        /* Contenedor del Logro Sugerido de Forma Automática */
         .bloque-sugerencia-automatica {
             margin-top: 5px;
             background: rgba(234, 179, 8, 0.04);
@@ -196,6 +195,11 @@
             padding: 30px 0;
             grid-column: 1 / -1;
         }
+        
+        .error-texto {
+            color: var(--rojo-error);
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -220,16 +224,15 @@
 
     <script>
         // ========================================================
-        // CONFIGURACIÓN E INTEGRACIÓN DE TU API DE ODDS
+        // 1. COLOCA TU API KEY AQUÍ ABAJO (MANTÉN LAS COMILLAS SIMPLES)
         // ========================================================
-        const API_KEY = 'b55dc1db9b4f0aea7bdd5100a9952c00'; // <-- REEMPLAZA CON TU API KEY REAL
+        const API_KEY = 'b55dc1db9b4f0aea7bdd5100a9952c00'; 
         
         const SPORT = 'baseball_mlb';
         const REGIONS = 'us';
         const MARKETS = 'h2h,spreads,totals';
         const ODDS_FORMAT = 'american';
 
-        // Llaves para LocalStorage
         const CACHE_JUEGOS = 'sipa_cache_juegos';
         const CACHE_TIEMPO = 'sipa_cache_timestamp';
         const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions';
@@ -239,35 +242,41 @@
         });
 
         async function ejecutarFlujoPredicciones() {
-            const cache = localStorage.getItem(CACHE_JUEGOS);
-            const timestamp = localStorage.getItem(CACHE_TIEMPO);
-            const ahora = new Date().getTime();
+            try {
+                const cache = localStorage.getItem(CACHE_JUEGOS);
+                const timestamp = localStorage.getItem(CACHE_TIEMPO);
+                const ahora = new Date().getTime();
 
-            // Ahorro automático de créditos: Usar caché si tiene menos de 12 horas
-            if (cache && timestamp && (ahora - timestamp < 12 * 60 * 60 * 1000)) {
-                console.log("Cargando datos de partidos desde almacenamiento local.");
-                procesarYFiltrarMejoresOpciones(JSON.parse(cache));
-                verificarYCalcularResultados();
-            } else {
-                await descargarNuevosDatosDeMercado();
+                if (cache && timestamp && (ahora - timestamp < 12 * 60 * 60 * 1000)) {
+                    procesarYFiltrarMejoresOpciones(JSON.parse(cache));
+                    verificarYCalcularResultados();
+                } else {
+                    await descargarNuevosDatosDeMercado();
+                }
+                renderizarDashboardEfectividad();
+            } catch (error) {
+                mostrarError("Error al iniciar: " + error.message);
             }
-            renderizarDashboardEfectividad();
         }
 
         async function forzarActualizacionCompleta() {
-            localStorage.removeItem(CACHE_TIEMPO);
-            await descargarNuevosDatosDeMercado();
-            renderizarDashboardEfectividad();
+            try {
+                document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">Sincronizando...</p>';
+                localStorage.removeItem(CACHE_TIEMPO);
+                await descargarNuevosDatosDeMercado();
+                renderizarDashboardEfectividad();
+            } catch (error) {
+                mostrarError("Error de sincronización: " + error.message);
+            }
         }
 
         async function descargarNuevosDatosDeMercado() {
-            // Entorno de contingencia/demo si no se ha configurado la API Key
             if (API_KEY === 'TU_API_KEY_AQUÍ' || API_KEY === '') {
                 const datosSimulados = obtenerPizarraSimulada();
                 localStorage.setItem(CACHE_JUEGOS, JSON.stringify(datosSimulados));
                 localStorage.setItem(CACHE_TIEMPO, new Date().getTime().toString());
                 procesarYFiltrarMejoresOpciones(datosSimulados);
-                inyectarResultadosDemoPrevios(); // Simulación para poblar el panel histórico inicial
+                inyectarResultadosDemoPrevios(); 
                 return;
             }
 
@@ -275,8 +284,13 @@
             
             try {
                 const res = await fetch(url);
-                if (!res.ok) throw new Error("Error de red");
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.message || "Error al conectar con The Odds API.");
+                }
                 const partidos = await res.json();
+
+                if (!Array.isArray(partidos)) throw new Error("La API devolvió un formato no válido.");
 
                 localStorage.setItem(CACHE_JUEGOS, JSON.stringify(partidos));
                 localStorage.setItem(CACHE_TIEMPO, new Date().getTime().toString());
@@ -284,14 +298,10 @@
                 procesarYFiltrarMejoresOpciones(partidos);
                 await verificarYCalcularResultados();
             } catch (err) {
-                console.error("Error al consultar API:", err);
-                procesarYFiltrarMejoresOpciones(obtenerPizarraSimulada());
+                mostrarError(err.message);
             }
         }
 
-        // ========================================================
-        // ALGORITMO DE SELECCIÓN INTELIGENTE (OPCIÓN 1: SEGURO / FAVORITO)
-        // ========================================================
         function procesarYFiltrarMejoresOpciones(partidos) {
             const contenedor = document.getElementById('contenedor-pizarra');
             contenedor.innerHTML = '';
@@ -302,44 +312,52 @@
             }
 
             let prediccionesAutoGuardar = JSON.parse(localStorage.getItem(REGISTRO_PREDICCIONES) || '[]');
+            let juegosProcesados = 0;
 
             partidos.forEach(partido => {
+                // ESCUDO 1: Verificar que el partido tenga casas de apuestas
+                if (!partido.bookmakers || partido.bookmakers.length === 0) return; 
+
                 const bookmaker = partido.bookmakers.find(b => b.key === 'draftkings') || partido.bookmakers[0];
-                if (!bookmaker) return;
+                
+                // ESCUDO 2: Verificar que existan mercados (markets) en esa casa
+                if (!bookmaker || !bookmaker.markets) return;
 
                 let listaOpcionesCandidatas = [];
 
-                // 1. Analizar Moneyline (Buscar favorito pesado)
                 const h2h = bookmaker.markets.find(m => m.key === 'h2h');
-                if (h2h) {
+                if (h2h && h2h.outcomes) {
                     h2h.outcomes.forEach(out => {
-                        if (out.price < 0) { // Indica que es favorito en cuota americana (ej: -180)
+                        if (out.price < 0) { 
                             listaOpcionesCandidatas.push({ market: 'h2h', name: out.name, price: out.price, point: '' });
                         }
                     });
                 }
 
-                // 2. Analizar Spreads / Runline (Buscar ventajas colchón +1.5 de los Underdogs favoritos por cuota)
                 const spreads = bookmaker.markets.find(m => m.key === 'spreads');
-                if (spreads) {
+                if (spreads && spreads.outcomes) {
                     spreads.outcomes.forEach(out => {
-                        if (out.point > 0 && out.price < -140) { // Ejemplo: Ventaja de +1.5 segura con pago razonable
+                        if (out.point > 0 && out.price < -140) { 
                             listaOpcionesCandidatas.push({ market: 'spreads', name: out.name, price: out.price, point: out.point });
                         }
                     });
                 }
 
-                // Si no se encontraron favoritos marcados, tomar el Moneyline con menor riesgo disponible
-                if(listaOpcionesCandidatas.length === 0 && h2h) {
+                if(listaOpcionesCandidatas.length === 0 && h2h && h2h.outcomes) {
                     const menorRiesgo = h2h.outcomes.reduce((prev, current) => (prev.price < current.price) ? prev : current);
                     listaOpcionesCandidatas.push({ market: 'h2h', name: menorRiesgo.name, price: menorRiesgo.price, point: '' });
                 }
 
-                // ORDENAR: El algoritmo elige la opción con el número americano más negativo (mayor probabilidad implícita)
+                // ESCUDO 3: Si por alguna razón el juego no tiene datos válidos, lo saltamos sin causar error
+                if (listaOpcionesCandidatas.length === 0) return;
+
                 listaOpcionesCandidatas.sort((a, b) => a.price - b.price);
                 const mejorLogroSeguro = listaOpcionesCandidatas[0];
 
-                // Auto-registrar en el historial de evaluación en segundo plano si no existe
+                if (!mejorLogroSeguro) return; // Validación extra de seguridad
+
+                juegosProcesados++;
+
                 if (!prediccionesAutoGuardar.some(p => p.gameId === partido.id)) {
                     prediccionesAutoGuardar.push({
                         gameId: partido.id,
@@ -351,7 +369,6 @@
                     });
                 }
 
-                // Renderizar tarjeta con la recomendación única fija
                 const markup = `
                     <div class="card-juego">
                         <div class="card-header">
@@ -374,12 +391,13 @@
                 contenedor.innerHTML += markup;
             });
 
+            if(juegosProcesados === 0) {
+                 contenedor.innerHTML = '<p class="no-data">No hay cuotas disponibles para analizar en este momento.</p>';
+            }
+
             localStorage.setItem(REGISTRO_PREDICCIONES, JSON.stringify(prediccionesAutoGuardar));
         }
 
-        // ========================================================
-        // EVALUACIÓN AUTOMÁTICA DE LOGROS SUGERIDOS
-        // ========================================================
         async function verificarYCalcularResultados() {
             if (API_KEY === 'TU_API_KEY_AQUÍ' || API_KEY === '') return;
 
@@ -392,6 +410,9 @@
             try {
                 const respuesta = await fetch(url_scores);
                 const scoresRealetime = await respuesta.json();
+                
+                if (!Array.isArray(scoresRealetime)) return; // Falla silenciosa si la API de scores se cae
+
                 let cambiosEfectuados = false;
 
                 pendientes.forEach(pred => {
@@ -424,7 +445,7 @@
                     renderizarDashboardEfectividad();
                 }
             } catch (e) {
-                console.error("Error en auditoría automatizada:", e);
+                console.warn("Error en auditoría automatizada:", e);
             }
         }
 
@@ -433,11 +454,7 @@
             const contenedorPorcentaje = document.getElementById('global-winrate');
             const contenedorConteo = document.getElementById('global-conteo');
 
-            if (!data) {
-                contenedorPorcentaje.innerText = "0%";
-                contenedorConteo.innerText = "0 Sugerencias Acertadas / 0 Evaluadas";
-                return;
-            }
+            if (!data) return;
 
             const historial = JSON.parse(data);
             const evaluadas = historial.filter(p => p.status !== 'pendiente');
@@ -454,10 +471,13 @@
             else if (total > 0) contenedorPorcentaje.style.color = 'var(--rojo-error)';
         }
 
-        // SIMULACIONES DE RESPALDO (MODO DEMO)
+        function mostrarError(mensaje) {
+            const contenedor = document.getElementById('contenedor-pizarra');
+            contenedor.innerHTML = `<p class="no-data error-texto">⚠️ DETENIDO: ${mensaje}. <br><br>Por favor, revisa que tu API_KEY esté bien escrita.</p>`;
+        }
+
         function inyectarResultadosDemoPrevios() {
             let historial = JSON.parse(localStorage.getItem(REGISTRO_PREDICCIONES) || '[]');
-            // Si está vacío, le inyectamos un récord de muestra realista para ilustrar el funcionamiento autónomo
             if(historial.filter(p => p.status !== 'pendiente').length === 0) {
                 const baseSimulada = [
                     { gameId: "hist-1", market: "h2h", selection: "New York Yankees", point: "", status: "ganada" },
@@ -480,5 +500,4 @@
                     bookmakers: [{
                         key: "draftkings",
                         markets: [
-                            { key: "h2h", outcomes: [{ name: "New York Yankees", price: -190 }, { name: "Boston Red Sox", price: +160 }] },
-                            { key: "spreads", outcomes: [{ name: "New York Yankees",
+                            { key: "h2h", outcomes: [{ name: "New York Yankees", price: -190 }, { name: "Bosto
