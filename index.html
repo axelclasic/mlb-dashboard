@@ -262,7 +262,7 @@
 
         async function descargarNuevosDatosDeMercado() {
             // Entorno de contingencia/demo si no se ha configurado la API Key
-            if (API_KEY === 'b55dc1db9b4f0aea7bdd5100a9952c00' || API_KEY === '') {
+            if (API_KEY === 'TU_API_KEY_AQUÍ' || API_KEY === '') {
                 const datosSimulados = obtenerPizarraSimulada();
                 localStorage.setItem(CACHE_JUEGOS, JSON.stringify(datosSimulados));
                 localStorage.setItem(CACHE_TIEMPO, new Date().getTime().toString());
