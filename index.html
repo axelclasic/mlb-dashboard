@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>S.I.P.A. - MLB AI Predictor</title>
     <style>
-        /* ==========================================
-           DISEÑO PREMIUM OSCURO Y RESPONSIVO
-           ========================================== */
         :root {
             --bg-principal: #0b0f19;
             --bg-tarjetas: #151f32;
@@ -61,7 +58,6 @@
             cursor: pointer;
         }
 
-        /* Panel Superior de Rendimiento Automático */
         .panel-rendimiento {
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
             border: 1px solid var(--bg-interacciones);
@@ -93,7 +89,6 @@
             color: var(--texto-mutado);
         }
 
-        /* Sección de Pizarra de Sugerencias */
         .seccion-predicciones h2 {
             font-size: 1.05rem;
             margin-bottom: 12px;
@@ -113,7 +108,6 @@
             }
         }
 
-        /* Tarjeta de Juego */
         .card-juego {
             background-color: var(--bg-tarjetas);
             border-radius: 10px;
@@ -199,6 +193,10 @@
         .error-texto {
             color: var(--rojo-error);
             font-weight: bold;
+            background: rgba(239, 68, 68, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--rojo-error);
         }
     </style>
 </head>
@@ -206,174 +204,173 @@
 
     <header>
         <h1>S.I.P.A. MLB</h1>
-        <button class="btn-refresh" onclick="forzarActualizacionCompleta()">Sincronizar 🔄</button>
+        <button class="btn-refresh" onclick="forzarLimpiezaCompleta()">Sincronizar 🔄</button>
     </header>
 
     <div class="panel-rendimiento">
         <h3>Efectividad Actual del Algoritmo</h3>
         <div class="porcentaje-grande" id="global-winrate">0%</div>
-        <div class="sub-conteo" id="global-conteo">0 Sugerencias Acertadas / 0 Evaluadas</div>
+        <div class="sub-conteo" id="global-conteo">Evaluando sistema...</div>
     </div>
 
     <div class="seccion-predicciones">
         <h2>Sugerencias de Alta Probabilidad (Hoy)</h2>
         <div class="grid-juegos" id="contenedor-pizarra">
-            <p class="no-data">Analizando bases de datos...</p>
+            <p class="no-data" id="texto-carga">Iniciando S.I.P.A v2.0...</p>
         </div>
     </div>
 
     <script>
-        // ========================================================
-        // 1. COLOCA TU API KEY AQUÍ ABAJO (MANTÉN LAS COMILLAS SIMPLES)
-        // ========================================================
+        // API KEY INCRUSTADA DIRECTAMENTE
         const API_KEY = 'b55dc1db9b4f0aea7bdd5100a9952c00'; 
         
         const SPORT = 'baseball_mlb';
         const REGIONS = 'us';
-        const MARKETS = 'h2h,spreads,totals';
+        const MARKETS = 'h2h,spreads';
         const ODDS_FORMAT = 'american';
 
-        const CACHE_JUEGOS = 'sipa_cache_juegos';
-        const CACHE_TIEMPO = 'sipa_cache_timestamp';
-        const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions';
+        const CACHE_JUEGOS = 'sipa_cache_juegos_v2';
+        const CACHE_TIEMPO = 'sipa_cache_timestamp_v2';
+        const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions_v2';
 
-        document.addEventListener('DOMContentLoaded', () => {
-            ejecutarFlujoPredicciones();
+        document.addEventListener('DOMContentLoaded', function() {
+            iniciarSistema();
         });
 
-        async function ejecutarFlujoPredicciones() {
+        async function iniciarSistema() {
             try {
-                const cache = localStorage.getItem(CACHE_JUEGOS);
+                const cacheStr = localStorage.getItem(CACHE_JUEGOS);
                 const timestamp = localStorage.getItem(CACHE_TIEMPO);
                 const ahora = new Date().getTime();
 
-                if (cache && timestamp && (ahora - timestamp < 12 * 60 * 60 * 1000)) {
-                    procesarYFiltrarMejoresOpciones(JSON.parse(cache));
-                    verificarYCalcularResultados();
-                } else {
-                    await descargarNuevosDatosDeMercado();
+                let cacheValido = false;
+                let partidosGuardados = null;
+
+                if (cacheStr && timestamp && (ahora - timestamp < 4 * 60 * 60 * 1000)) {
+                    try {
+                        partidosGuardados = JSON.parse(cacheStr);
+                        cacheValido = true;
+                    } catch (e) {
+                        cacheValido = false;
+                    }
                 }
-                renderizarDashboardEfectividad();
+
+                if (cacheValido && partidosGuardados) {
+                    procesarPartidos(partidosGuardados);
+                    verificarResultados();
+                } else {
+                    await descargarDatos();
+                }
+                
+                actualizarDashboard();
             } catch (error) {
-                mostrarError("Error al iniciar: " + error.message);
+                mostrarFalloSistema("Error al arrancar: " + error.message);
             }
         }
 
-        async function forzarActualizacionCompleta() {
-            try {
-                document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">Sincronizando...</p>';
-                localStorage.removeItem(CACHE_TIEMPO);
-                await descargarNuevosDatosDeMercado();
-                renderizarDashboardEfectividad();
-            } catch (error) {
-                mostrarError("Error de sincronización: " + error.message);
-            }
+        async function forzarLimpiezaCompleta() {
+            const contenedor = document.getElementById('contenedor-pizarra');
+            contenedor.innerHTML = '<p class="no-data">Sincronizando con los servidores...</p>';
+            localStorage.removeItem(CACHE_JUEGOS);
+            localStorage.removeItem(CACHE_TIEMPO);
+            await descargarDatos();
+            actualizarDashboard();
         }
 
-        async function descargarNuevosDatosDeMercado() {
-            if (API_KEY === 'TU_API_KEY_AQUÍ' || API_KEY === '') {
-                const datosSimulados = obtenerPizarraSimulada();
-                localStorage.setItem(CACHE_JUEGOS, JSON.stringify(datosSimulados));
-                localStorage.setItem(CACHE_TIEMPO, new Date().getTime().toString());
-                procesarYFiltrarMejoresOpciones(datosSimulados);
-                inyectarResultadosDemoPrevios(); 
-                return;
-            }
-
+        async function descargarDatos() {
             const url = `https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?apiKey=${API_KEY}&regions=${REGIONS}&markets=${MARKETS}&oddsFormat=${ODDS_FORMAT}`;
             
             try {
-                const res = await fetch(url);
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.message || "Error al conectar con The Odds API.");
+                const respuesta = await fetch(url);
+                if (!respuesta.ok) {
+                    const datosError = await respuesta.json();
+                    throw new Error(datosError.message || "Error en la conexión con la API de apuestas.");
                 }
-                const partidos = await res.json();
+                const partidos = await respuesta.json();
 
-                if (!Array.isArray(partidos)) throw new Error("La API devolvió un formato no válido.");
+                if (!partidos || partidos.length === 0) {
+                    document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">No hay juegos listados para hoy.</p>';
+                    return;
+                }
 
                 localStorage.setItem(CACHE_JUEGOS, JSON.stringify(partidos));
                 localStorage.setItem(CACHE_TIEMPO, new Date().getTime().toString());
                 
-                procesarYFiltrarMejoresOpciones(partidos);
-                await verificarYCalcularResultados();
-            } catch (err) {
-                mostrarError(err.message);
+                procesarPartidos(partidos);
+                await verificarResultados();
+            } catch (error) {
+                mostrarFalloSistema(error.message);
             }
         }
 
-        function procesarYFiltrarMejoresOpciones(partidos) {
+        function procesarPartidos(partidos) {
             const contenedor = document.getElementById('contenedor-pizarra');
             contenedor.innerHTML = '';
 
-            if(!partidos || partidos.length === 0) {
-                contenedor.innerHTML = '<p class="no-data">No hay partidos de MLB calendarizados para hoy.</p>';
-                return;
-            }
+            let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
+            let historialPredicciones = prediccionesStr ? JSON.parse(prediccionesStr) : [];
+            let contadorEncontrados = 0;
 
-            let prediccionesAutoGuardar = JSON.parse(localStorage.getItem(REGISTRO_PREDICCIONES) || '[]');
-            let juegosProcesados = 0;
+            for (let i = 0; i < partidos.length; i++) {
+                let partido = partidos[i];
 
-            partidos.forEach(partido => {
-                // ESCUDO 1: Verificar que el partido tenga casas de apuestas
-                if (!partido.bookmakers || partido.bookmakers.length === 0) return; 
-
-                const bookmaker = partido.bookmakers.find(b => b.key === 'draftkings') || partido.bookmakers[0];
+                if (!partido.bookmakers || partido.bookmakers.length === 0) continue;
                 
-                // ESCUDO 2: Verificar que existan mercados (markets) en esa casa
-                if (!bookmaker || !bookmaker.markets) return;
+                let bookmaker = partido.bookmakers.find(b => b.key === 'draftkings');
+                if (!bookmaker) bookmaker = partido.bookmakers[0];
 
-                let listaOpcionesCandidatas = [];
+                if (!bookmaker || !bookmaker.markets) continue;
 
-                const h2h = bookmaker.markets.find(m => m.key === 'h2h');
+                let opciones = [];
+
+                let h2h = bookmaker.markets.find(m => m.key === 'h2h');
                 if (h2h && h2h.outcomes) {
-                    h2h.outcomes.forEach(out => {
-                        if (out.price < 0) { 
-                            listaOpcionesCandidatas.push({ market: 'h2h', name: out.name, price: out.price, point: '' });
+                    for (let j = 0; j < h2h.outcomes.length; j++) {
+                        let out = h2h.outcomes[j];
+                        if (out.price < 0) {
+                            opciones.push({ market: 'h2h', name: out.name, price: out.price, point: '' });
                         }
-                    });
+                    }
                 }
 
-                const spreads = bookmaker.markets.find(m => m.key === 'spreads');
-                if (spreads && spreads.outcomes) {
-                    spreads.outcomes.forEach(out => {
-                        if (out.point > 0 && out.price < -140) { 
-                            listaOpcionesCandidatas.push({ market: 'spreads', name: out.name, price: out.price, point: out.point });
-                        }
-                    });
+                if (opciones.length === 0) continue;
+
+                // Ordenar para buscar el más seguro (el número negativo más grande, ej: -200 es mejor que -110)
+                opciones.sort((a, b) => a.price - b.price);
+                let logroSeleccionado = opciones[0];
+
+                contadorEncontrados++;
+
+                let existe = false;
+                for (let k = 0; k < historialPredicciones.length; k++) {
+                    if (historialPredicciones[k].gameId === partido.id) {
+                        existe = true;
+                        break;
+                    }
                 }
 
-                if(listaOpcionesCandidatas.length === 0 && h2h && h2h.outcomes) {
-                    const menorRiesgo = h2h.outcomes.reduce((prev, current) => (prev.price < current.price) ? prev : current);
-                    listaOpcionesCandidatas.push({ market: 'h2h', name: menorRiesgo.name, price: menorRiesgo.price, point: '' });
-                }
-
-                // ESCUDO 3: Si por alguna razón el juego no tiene datos válidos, lo saltamos sin causar error
-                if (listaOpcionesCandidatas.length === 0) return;
-
-                listaOpcionesCandidatas.sort((a, b) => a.price - b.price);
-                const mejorLogroSeguro = listaOpcionesCandidatas[0];
-
-                if (!mejorLogroSeguro) return; // Validación extra de seguridad
-
-                juegosProcesados++;
-
-                if (!prediccionesAutoGuardar.some(p => p.gameId === partido.id)) {
-                    prediccionesAutoGuardar.push({
+                if (!existe) {
+                    historialPredicciones.push({
                         gameId: partido.id,
-                        market: mejorLogroSeguro.market,
-                        selection: mejorLogroSeguro.name,
-                        point: mejorLogroSeguro.point,
-                        status: 'pendiente',
-                        fecha: new Date().toISOString().split('T')[0]
+                        market: logroSeleccionado.market,
+                        selection: logroSeleccionado.name,
+                        point: logroSeleccionado.point,
+                        status: 'pendiente'
                     });
                 }
 
-                const markup = `
+                let fechaObj = new Date(partido.commence_time);
+                let horaFormateada = fechaObj.getHours() + ':' + (fechaObj.getMinutes() < 10 ? '0' : '') + fechaObj.getMinutes();
+
+                let signoCuota = logroSeleccionado.price > 0 ? '+' : '';
+                let signoPunto = logroSeleccionado.point > 0 ? '+' : '';
+                let textoPunto = logroSeleccionado.point !== '' ? ' ' + signoPunto + logroSeleccionado.point : '';
+
+                let htmlTarjeta = `
                     <div class="card-juego">
                         <div class="card-header">
                             <span class="badge-sistema">SELECCIÓN IA</span>
-                            <span>${new Date(partido.commence_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            <span>${horaFormateada}</span>
                         </div>
                         <div class="duelo-equipos">
                             <div>⚾ ${partido.away_team}</div>
@@ -381,123 +378,106 @@
                         </div>
                         <div class="bloque-sugerencia-automatica">
                             <div class="info-sugerencia">
-                                <span class="tag-tipo-logro">${mejorLogroSeguro.market === 'h2h' ? 'Gana Directo (ML)' : 'Hándicap Seguro (RL)'}</span>
-                                <span class="seleccion-texto">${mejorLogroSeguro.name} ${mejorLogroSeguro.point > 0 ? '+' + mejorLogroSeguro.point : mejorLogroSeguro.point}</span>
+                                <span class="tag-tipo-logro">GANA DIRECTO (ML)</span>
+                                <span class="seleccion-texto">${logroSeleccionado.name}${textoPunto}</span>
                             </div>
-                            <div class="cuota-valor">${mejorLogroSeguro.price > 0 ? '+' + mejorLogroSeguro.price : mejorLogroSeguro.price}</div>
+                            <div class="cuota-valor">${signoCuota}${logroSeleccionado.price}</div>
                         </div>
                     </div>
                 `;
-                contenedor.innerHTML += markup;
-            });
-
-            if(juegosProcesados === 0) {
-                 contenedor.innerHTML = '<p class="no-data">No hay cuotas disponibles para analizar en este momento.</p>';
+                contenedor.innerHTML += htmlTarjeta;
             }
 
-            localStorage.setItem(REGISTRO_PREDICCIONES, JSON.stringify(prediccionesAutoGuardar));
+            if (contadorEncontrados === 0) {
+                contenedor.innerHTML = '<p class="no-data">Analizando los datos disponibles: No se encontraron cuotas seguras en este momento.</p>';
+            }
+
+            localStorage.setItem(REGISTRO_PREDICCIONES, JSON.stringify(historialPredicciones));
         }
 
-        async function verificarYCalcularResultados() {
-            if (API_KEY === 'TU_API_KEY_AQUÍ' || API_KEY === '') return;
+        async function verificarResultados() {
+            let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
+            if (!prediccionesStr) return;
+            
+            let predicciones = JSON.parse(prediccionesStr);
+            let hayPendientes = false;
+            
+            for (let i = 0; i < predicciones.length; i++) {
+                if (predicciones[i].status === 'pendiente') hayPendientes = true;
+            }
 
-            let predicciones = JSON.parse(localStorage.getItem(REGISTRO_PREDICCIONES) || '[]');
-            const pendientes = predicciones.filter(p => p.status === 'pendiente');
-            if (pendientes.length === 0) return;
+            if (!hayPendientes) return;
 
-            const url_scores = `https://api.the-odds-api.com/v4/sports/${SPORT}/scores/?daysFrom=3&apiKey=${API_KEY}`;
+            let url = `https://api.the-odds-api.com/v4/sports/${SPORT}/scores/?daysFrom=3&apiKey=${API_KEY}`;
             
             try {
-                const respuesta = await fetch(url_scores);
-                const scoresRealetime = await respuesta.json();
-                
-                if (!Array.isArray(scoresRealetime)) return; // Falla silenciosa si la API de scores se cae
+                let respuesta = await fetch(url);
+                let scores = await respuesta.json();
+                let cambios = false;
 
-                let cambiosEfectuados = false;
+                if (!Array.isArray(scores)) return;
 
-                pendientes.forEach(pred => {
-                    const resultadoJuego = scoresRealetime.find(s => s.id === pred.gameId);
-                    if (resultadoJuego && resultadoJuego.completed) {
-                        const homeScore = parseInt(resultadoJuego.scores.find(s => s.name === resultadoJuego.home_team)?.score || 0);
-                        const awayScore = parseInt(resultadoJuego.scores.find(s => s.name === resultadoJuego.away_team)?.score || 0);
-                        let acertoAlgoritmo = false;
+                for (let i = 0; i < predicciones.length; i++) {
+                    let pred = predicciones[i];
+                    if (pred.status !== 'pendiente') continue;
 
+                    let juego = scores.find(s => s.id === pred.gameId);
+                    if (juego && juego.completed && juego.scores) {
+                        
+                        let homeData = juego.scores.find(s => s.name === juego.home_team);
+                        let awayData = juego.scores.find(s => s.name === juego.away_team);
+                        
+                        let homeScore = homeData ? parseInt(homeData.score) : 0;
+                        let awayScore = awayData ? parseInt(awayData.score) : 0;
+                        
+                        let ganadorReal = homeScore > awayScore ? juego.home_team : juego.away_team;
+                        
                         if (pred.market === 'h2h') {
-                            const ganadorReal = homeScore > awayScore ? resultadoJuego.home_team : resultadoJuego.away_team;
-                            acertoAlgoritmo = pred.selection === ganadorReal;
-                        } 
-                        else if (pred.market === 'spreads') {
-                            const ventaja = parseFloat(pred.point);
-                            if (pred.selection === resultadoJuego.home_team) {
-                                acertoAlgoritmo = (homeScore + ventaja) > awayScore;
-                            } else {
-                                acertoAlgoritmo = (awayScore + ventaja) > homeScore;
-                            }
+                            pred.status = (pred.selection === ganadorReal) ? 'ganada' : 'perdida';
+                            cambios = true;
                         }
-
-                        pred.status = acertoAlgoritmo ? 'ganada' : 'perdida';
-                        cambiosEfectuados = true;
                     }
-                });
+                }
 
-                if (cambiosEfectuados) {
+                if (cambios) {
                     localStorage.setItem(REGISTRO_PREDICCIONES, JSON.stringify(predicciones));
-                    renderizarDashboardEfectividad();
+                    actualizarDashboard();
                 }
             } catch (e) {
-                console.warn("Error en auditoría automatizada:", e);
+                console.log("No se pudo auditar resultados todavía.");
             }
         }
 
-        function renderizarDashboardEfectividad() {
-            const data = localStorage.getItem(REGISTRO_PREDICCIONES);
-            const contenedorPorcentaje = document.getElementById('global-winrate');
-            const contenedorConteo = document.getElementById('global-conteo');
+        function actualizarDashboard() {
+            let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
+            if (!prediccionesStr) return;
 
-            if (!data) return;
+            let historial = JSON.parse(prediccionesStr);
+            let total = 0;
+            let ganadas = 0;
 
-            const historial = JSON.parse(data);
-            const evaluadas = historial.filter(p => p.status !== 'pendiente');
-            const acertadas = evaluadas.filter(p => p.status === 'ganada').length;
-            
-            const total = evaluadas.length;
-            const winRate = total > 0 ? Math.round((acertadas / total) * 100) : 0;
-
-            contenedorPorcentaje.innerText = `${winRate}%`;
-            contenedorConteo.innerText = `${acertadas} Sugerencias Acertadas / ${total} Evaluadas`;
-
-            if (winRate >= 65) contenedorPorcentaje.style.color = 'var(--verde-exito)';
-            else if (winRate >= 50) contenedorPorcentaje.style.color = 'var(--oro-sugerencia)';
-            else if (total > 0) contenedorPorcentaje.style.color = 'var(--rojo-error)';
-        }
-
-        function mostrarError(mensaje) {
-            const contenedor = document.getElementById('contenedor-pizarra');
-            contenedor.innerHTML = `<p class="no-data error-texto">⚠️ DETENIDO: ${mensaje}. <br><br>Por favor, revisa que tu API_KEY esté bien escrita.</p>`;
-        }
-
-        function inyectarResultadosDemoPrevios() {
-            let historial = JSON.parse(localStorage.getItem(REGISTRO_PREDICCIONES) || '[]');
-            if(historial.filter(p => p.status !== 'pendiente').length === 0) {
-                const baseSimulada = [
-                    { gameId: "hist-1", market: "h2h", selection: "New York Yankees", point: "", status: "ganada" },
-                    { gameId: "hist-2", market: "spreads", selection: "Los Angeles Dodgers", point: "1.5", status: "ganada" },
-                    { gameId: "hist-3", market: "h2h", selection: "Houston Astros", point: "", status: "perdida" },
-                    { gameId: "hist-4", market: "spreads", selection: "Boston Red Sox", point: "1.5", status: "ganada" }
-                ];
-                localStorage.setItem(REGISTRO_PREDICCIONES, JSON.stringify([...historial, ...baseSimulada]));
-                renderizarDashboardEfectividad();
+            for (let i = 0; i < historial.length; i++) {
+                if (historial[i].status !== 'pendiente') {
+                    total++;
+                    if (historial[i].status === 'ganada') ganadas++;
+                }
             }
+
+            let porcentaje = total > 0 ? Math.round((ganadas / total) * 100) : 0;
+
+            document.getElementById('global-winrate').innerText = porcentaje + '%';
+            document.getElementById('global-conteo').innerText = ganadas + ' Acertadas / ' + total + ' Evaluadas';
         }
 
-        function obtenerPizarraSimulada() {
-            return [
-                {
-                    id: "mlb-realtime-mock-1",
-                    home_team: "New York Yankees",
-                    away_team: "Boston Red Sox",
-                    commence_time: new Date().toISOString(),
-                    bookmakers: [{
-                        key: "draftkings",
-                        markets: [
-                            { key: "h2h", outcomes: [{ name: "New York Yankees", price: -190 }, { name: "Bosto
+        function mostrarFalloSistema(mensajeError) {
+            document.getElementById('contenedor-pizarra').innerHTML = `
+                <div class="error-texto">
+                    <strong>⚠️ ERROR DEL SISTEMA:</strong><br><br>
+                    ${mensajeError}<br><br>
+                    Verifica tus créditos en The Odds API.
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
