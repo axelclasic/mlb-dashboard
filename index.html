@@ -3,206 +3,705 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard EV+ | Apuestas</title>
+    <title>MLB Data Aggregator & Backtesting</title>
     <style>
+        /* ==========================================
+           ESTILOS GENERALES (DISEÑO PREMIUM OSCURO)
+           ========================================== */
         :root {
-            --bg-color: #0d1117;
-            --card-bg: #161b22;
-            --text-main: #c9d1d9;
-            --text-muted: #8b949e;
-            --accent-green: #2ea043;
-            --accent-red: #f85149;
-            --border-color: #30363d;
+            --bg-principal: #0f172a;
+            --bg-tarjetas: #1e293b;
+            --bg-interacciones: #334155;
+            --texto-blanco: #f8fafc;
+            --texto-mutado: #94a3b8;
+            --cyan-moneyline: #00f0ff;
+            --morado-runline: #a855f7;
+            --naranja-totals: #f97316;
+            --verde-exito: #10b981;
+            --rojo-error: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            margin: 0;
-            padding: 20px;
+            background-color: var(--bg-principal);
+            color: var(--texto-blanco);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
 
         header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 15px;
-        }
-
-        h1 { margin: 0; font-size: 26px; color: #ffffff; }
-        p { color: var(--text-muted); font-size: 15px; }
-
-        .controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--bg-interacciones);
             margin-bottom: 20px;
         }
 
-        button {
-            background-color: var(--accent-green);
-            color: #ffffff;
-            border: none;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: 600;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-
-        button:hover { background-color: #3fb950; }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: var(--card-bg);
-            border-radius: 6px;
-            overflow: hidden;
-            border: 1px solid var(--border-color);
-        }
-
-        th, td {
-            padding: 14px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        th {
-            background-color: #0d1117;
-            color: var(--text-muted);
-            font-size: 12px;
-            text-transform: uppercase;
+        header h1 {
+            font-size: 1.4rem;
             letter-spacing: 0.5px;
         }
 
-        .confianza-alta { color: var(--accent-green); font-weight: bold; font-size: 16px; }
-        .confianza-media { color: #d29922; font-weight: bold; }
-        .confianza-baja { color: var(--accent-red); }
+        .btn-actualizar {
+            background: var(--bg-interacciones);
+            color: var(--texto-blanco);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        /* Contenedor Grid Responsivo */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 320px 1fr;
+            }
+        }
+
+        /* ==========================================
+           SANEAMIENTO DE APARTADOS (SIDEBAR)
+           ========================================== */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-box {
+            background-color: var(--bg-tarjetas);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-box h3 {
+            font-size: 1.05rem;
+            margin-bottom: 12px;
+            color: var(--texto-mutado);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* Widget de Backtesting (Efectividad) */
+        .backtesting-widget {
+            text-align: center;
+            padding: 20px 10px;
+        }
+
+        .win-rate-grande {
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: var(--texto-blanco);
+            margin-bottom: 5px;
+            transition: color 0.3s ease;
+        }
+
+        .conteo-sub {
+            font-size: 0.85rem;
+            color: var(--texto-mutado);
+        }
+
+        /* Cupón de Parlay */
+        .parlay-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .parlay-item {
+            background: var(--bg-principal);
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid var(--texto-mutado);
+        }
+
+        .parlay-item .eliminar {
+            color: var(--rojo-error);
+            cursor: pointer;
+            font-weight: bold;
+            padding-left: 10px;
+        }
+
+        .parlay-resumen {
+            border-top: 1px solid var(--bg-interacciones);
+            padding-top: 10px;
+            font-size: 0.9rem;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .parlay-resumen div {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .cuota-total {
+            font-weight: bold;
+            color: var(--cyan-moneyline);
+        }
+
+        /* ==========================================
+           CONTENEDOR PRINCIPAL DE PARTIDOS
+           ========================================== */
+        .partidos-seccion h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .grid-juegos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+            gap: 15px;
+        }
+
+        .card-juego {
+            background-color: var(--bg-tarjetas);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .badge-live {
+            background: #b91c1c;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .fecha-juego {
+            color: var(--texto-mutado);
+        }
+
+        .equipos-duelo {
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .equipo-fila {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .equipo-fila .rol {
+            font-size: 0.75rem;
+            color: var(--texto-mutado);
+            font-weight: normal;
+        }
+
+        /* Bloques de Selección de Logros */
+        .apartado-logros {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .logro-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-radius: 8px;
+            background: var(--bg-principal);
+            cursor: pointer;
+            transition: transform 0.1s ease, background 0.2s ease;
+        }
+
+        .logro-box:active {
+            transform: scale(0.98);
+        }
+
+        .logro-titulo {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .logro-cuota {
+            font-size: 0.85rem;
+            font-weight: bold;
+            background: var(--bg-interacciones);
+            padding: 2px 8px;
+            border-radius: 4px;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        /* Cinergia de color por Logro solicitado */
+        .market-moneyline {
+            border-left: 4px solid var(--cyan-moneyline);
+        }
+        .market-moneyline:hover { background: rgba(0, 240, 255, 0.08); }
+        .market-moneyline .logro-cuota { color: var(--cyan-moneyline); }
+
+        .market-runline {
+            border-left: 4px solid var(--morado-runline);
+        }
+        .market-runline:hover { background: rgba(168, 85, 247, 0.08); }
+        .market-runline .logro-cuota { color: var(--morado-runline); }
+
+        .market-totals {
+            border-left: 4px solid var(--naranja-totals);
+        }
+        .market-totals:hover { background: rgba(249, 115, 22, 0.08); }
+        .market-totals .logro-cuota { color: var(--naranja-totals); }
+
+        .no-games {
+            color: var(--texto-mutado);
+            font-size: 0.9rem;
+            text-align: center;
+            grid-column: 1 / -1;
+            padding: 40px 0;
+        }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>⚾ MLB Proyecciones y EV+</h1>
-        <p>Análisis de rentabilidad matemática y consenso</p>
+        <h1>MLB Data Aggregator</h1>
+        <button class="btn-actualizar" onclick="forzarActualizarAPI()">Actualizar Datos 🔄</button>
     </header>
 
-    <main>
-        <div class="controls">
-            <button id="btn-actualizar" onclick="cargarDatos()">Escanear Líneas</button>
-            <span id="estado-actualizacion">Esperando inicio...</span>
+    <div class="dashboard-grid">
+        
+        <!-- BARRA LATERAL (ESTADÍSTICAS Y PARLAY) -->
+        <div class="sidebar">
+            
+            <!-- Bloque de Backtesting Dinámico -->
+            <div class="panel-box">
+                <h3>Efectividad (24h Backtesting)</h3>
+                <div class="backtesting-widget">
+                    <div class="win-rate-grande" id="win-rate-porcentaje">0%</div>
+                    <div class="conteo-sub" id="win-rate-conteo">0 Ganadas / 0 Evaluadas</div>
+                </div>
+            </div>
+
+            <!-- Bloque de Cupón de Apuestas -->
+            <div class="panel-box">
+                <h3>Parlay Builder</h3>
+                <div class="parlay-list" id="parlay-items-container">
+                    <!-- Dinámico -->
+                </div>
+                <div class="parlay-resumen">
+                    <div><span>Cuota Total:</span> <span class="cuota-total" id="parlay-cuota-total">+100</span></div>
+                    <div><span>Probabilidad Promedio:</span> <span id="parlay-probabilidad">0%</span></div>
+                    <button class="btn-actualizar" style="background: var(--verde-exito); margin-top: 10px;" onclick="guardarParlayParaSeguimiento()">Registrar para Backtesting 🎯</button>
+                </div>
+            </div>
+
         </div>
 
-        <table id="tabla-resultados">
-            <thead>
-                <tr>
-                    <th>Partido</th>
-                    <th>Mercado</th>
-                    <th>Selección</th>
-                    <th>Cuota Real</th>
-                    <th>Prob. Implícita</th>
-                    <th>Confianza / EV+</th>
-                </tr>
-            </thead>
-            <tbody id="cuerpo-tabla">
-                <!-- Los resultados aparecerán aquí -->
-            </tbody>
-        </table>
-    </main>
+        <!-- CONTENEDOR DE JUEGOS ACTIVOS -->
+        <div class="partidos-seccion">
+            <h2>Juegos Disponibles de la MLB</h2>
+            <div class="grid-juegos" id="partidos-container">
+                <p class="no-games">Cargando pizarra deportiva...</p>
+            </div>
+        </div>
 
+    </div>
+
+    <!-- ==========================================
+       LÓGICA JAVASCRIPT LOGÍSTICA COMPLETA
+       ========================================== -->
     <script>
-        // === LA ÚNICA LÍNEA QUE DEBES MODIFICAR ===
+        // Pega aquí tu API KEY dentro de las comillas simples si tienes el plan activo:
         const API_KEY = 'b55dc1db9b4f0aea7bdd5100a9952c00'; 
-        // ==========================================
+        
+        const SPORT = 'baseball_mlb';
+        const REGIONS = 'us';
+        const MARKETS = 'h2h,spreads,totals';
+        const ODDS_FORMAT = 'american';
 
-        const DEPORTE = 'baseball_mlb';
-        const REGIONES = 'us';
-        const MERCADOS = 'h2h,spreads,totals';
+        // Claves de Memoria Local
+        const CACHE_ODDS_KEY = 'mlb_odds_data_v2';
+        const CACHE_ODDS_TIME_KEY = 'mlb_odds_timestamp_v2';
+        const PREDICTIONS_KEY = 'mlb_user_predictions_v2';
 
-        async function cargarDatos() {
-            const estado = document.getElementById('estado-actualizacion');
-            const tbody = document.getElementById('cuerpo-tabla');
+        let parlayActual = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarDatosDashboard();
+            renderizarEstadisticasBacktesting();
+        });
+
+        async function cargarDatosDashboard() {
+            const cacheData = localStorage.getItem(CACHE_ODDS_KEY);
+            const cacheTimestamp = localStorage.getItem(CACHE_ODDS_TIME_KEY);
+            const ahora = new Date().getTime();
             
-            estado.textContent = 'Procesando datos del servidor...';
-            tbody.innerHTML = '';
+            // Filtro de ahorro: si tiene menos de 12 horas, usa la caché
+            if (cacheData && cacheTimestamp && (ahora - cacheTimestamp < 12 * 60 * 60 * 1000)) {
+                console.log("Cargando desde almacenamiento local para ahorrar créditos.");
+                procesarYMostrarPartidos(JSON.parse(cacheData));
+                verificarResultadosAutomaticos();
+            } else {
+                await consultarPartidosNuevos();
+            }
+        }
 
-            if (API_KEY === 'TU_API_KEY_AQUI') {
-                estado.textContent = 'Modo Demo (Requiere API Key real). Mostrando simulación...';
-                renderizarTabla(generarDatosSimulados());
+        async function forzarActualizarAPI() {
+            localStorage.removeItem(CACHE_ODDS_TIME_KEY);
+            await consultarPartidosNuevos();
+        }
+
+        async function consultarPartidosNuevos() {
+            // Si no has cambiado la API KEY, el sistema carga datos simulados automáticamente
+            if (API_KEY === 'TU_API_KEY_AQUÍ' || API_KEY === '') {
+                console.log("Cargando Modo Demo (Datos simulados).");
+                const mockData = obtenerDatosSimulados();
+                localStorage.setItem(CACHE_ODDS_KEY, JSON.stringify(mockData));
+                localStorage.setItem(CACHE_ODDS_TIME_KEY, new Date().getTime().toString());
+                procesarYMostrarPartidos(mockData);
                 return;
             }
 
+            const url = `https://api.the-odds-api.com/v4/sports/${SPORT}/odds/?apiKey=${API_KEY}&regions=${REGIONS}&markets=${MARKETS}&oddsFormat=${ODDS_FORMAT}`;
+            
             try {
-                const url = `https://api.the-odds-api.com/v4/sports/${DEPORTE}/odds/?apiKey=${API_KEY}&regions=${REGIONES}&markets=${MERCADOS}`;
                 const respuesta = await fetch(url);
-                const datos = await respuesta.json();
+                if (!respuesta.ok) throw new Error("Error API");
+                const partidos = await respuesta.json();
                 
-                const oportunidades = procesarDatos(datos);
-                renderizarTabla(oportunidades);
-                estado.textContent = `Última actualización: ${new Date().toLocaleTimeString()}`;
+                localStorage.setItem(CACHE_ODDS_KEY, JSON.stringify(partidos));
+                localStorage.setItem(CACHE_ODDS_TIME_KEY, new Date().getTime().toString());
+                
+                procesarYMostrarPartidos(partidos);
+                verificarResultadosAutomaticos();
             } catch (error) {
-                estado.textContent = 'Error de conexión. Revisa la consola.';
+                console.error(error);
+                alert("Error al conectar con The Odds API. Cargando entorno de prueba simulado.");
+                procesarYMostrarPartidos(obtenerDatosSimulados());
             }
         }
 
-        function calcularProbabilidad(cuota) { return (1 / cuota) * 100; }
+        function procesarYMostrarPartidos(partidos) {
+            const contenedor = document.getElementById('partidos-container');
+            contenedor.innerHTML = '';
 
-        function calcularConfianza(probabilidad) {
-            let base = probabilidad + (Math.random() * 18 - 4); 
-            return Math.min(Math.max(base, 1), 99).toFixed(1);
+            if(!partidos || partidos.length === 0) {
+                contenedor.innerHTML = '<p class="no-games">No hay partidos de MLB disponibles en este instante.</p>';
+                return;
+            }
+
+            partidos.forEach(partido => {
+                const bookmaker = partido.bookmakers.find(b => b.key === 'draftkings') || partido.bookmakers[0];
+                
+                let cuotasH2H = { home: '+100', away: '+100' };
+                let cuotasSpreads = { home: '+100', away: '+100', point: '-1.5' };
+                let cuotasTotals = { over: '-110', under: '-110', point: '8.5' };
+
+                if (bookmaker) {
+                    const h2hMarket = bookmaker.markets.find(m => m.key === 'h2h');
+                    if (h2hMarket) {
+                        cuotasH2H.home = h2hMarket.outcomes.find(o => o.name === partido.home_team)?.price || '+100';
+                        cuotasH2H.away = h2hMarket.outcomes.find(o => o.name === partido.away_team)?.price || '+100';
+                    }
+                    const spreadsMarket = bookmaker.markets.find(m => m.key === 'spreads');
+                    if (spreadsMarket) {
+                        const hOutcome = spreadsMarket.outcomes.find(o => o.name === partido.home_team);
+                        const aOutcome = spreadsMarket.outcomes.find(o => o.name === partido.away_team);
+                        cuotasSpreads.home = hOutcome?.price || '+100';
+                        cuotasSpreads.away = aOutcome?.price || '+100';
+                        cuotasSpreads.point = hOutcome?.point || '-1.5';
+                    }
+                    const totalsMarket = bookmaker.markets.find(m => m.key === 'totals');
+                    if (totalsMarket) {
+                        const overOutcome = totalsMarket.outcomes.find(o => o.name.toLowerCase().includes('over'));
+                        cuotasTotals.over = overOutcome?.price || '-110';
+                        cuotasTotals.point = overOutcome?.point || '8.5';
+                    }
+                }
+
+                const tarjetaHTML = `
+                    <div class="card-juego">
+                        <div class="card-header">
+                            <span class="badge-live">MLB</span>
+                            <span class="fecha-juego">${new Date(partido.commence_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
+                        <div class="equipos-duelo">
+                            <div class="equipo-fila">⚾ ${partido.away_team} <span class="rol">Visita</span></div>
+                            <div class="equipo-fila">🏠 ${partido.home_team} <span class="rol">Casa</span></div>
+                        </div>
+                        <div class="apartado-logros">
+                            <div class="logro-box market-moneyline" onclick="agregarAlCupón('${partido.id}', 'h2h', '${partido.home_team} (Ganador)', ${cuotasH2H.home}, '')">
+                                <span class="logro-titulo">MONEYLINE</span>
+                                <span class="logro-cuota">${cuotasH2H.home > 0 ? '+' + cuotasH2H.home : cuotasH2H.home}</span>
+                            </div>
+                            <div class="logro-box market-runline" onclick="agregarAlCupón('${partido.id}', 'spreads', '${partido.home_team} (${cuotasSpreads.point > 0 ? '+' + cuotasSpreads.point : cuotasSpreads.point})', ${cuotasSpreads.home}, '${cuotasSpreads.point}')">
+                                <span class="logro-titulo">RUNLINE (Hándicap)</span>
+                                <span class="logro-cuota">${cuotasSpreads.point > 0 ? '+' + cuotasSpreads.point : cuotasSpreads.point}</span>
+                            </div>
+                            <div class="logro-box market-totals" onclick="agregarAlCupón('${partido.id}', 'totals', 'O ${cuotasTotals.point} (Bajas/Altas)', ${cuotasTotals.over}, '${cuotasTotals.point}')">
+                                <span class="logro-titulo">TOTAL RUNS (Over)</span>
+                                <span class="logro-cuota">O ${cuotasTotals.point}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                contenedor.innerHTML += tarjetaHTML;
+            });
         }
 
-        function procesarDatos(juegos) {
-            let resultados = [];
-            juegos.forEach(juego => {
-                if (!juego.bookmakers || juego.bookmakers.length === 0) return;
-                const casa = juego.bookmakers[0];
+        // INTERACCIONES DEL CREADOR DE PARLAYS
+        function agregarAlCupón(gameId, market, selection, cuota, point) {
+            if (parlayActual.some(item => item.gameId === gameId)) {
+                alert("Ya seleccionaste un logro de este partido en tu cupón.");
+                return;
+            }
+            parlayActual.push({ gameId, market, selection, cuota, point });
+            renderizarParlayCupón();
+        }
 
-                casa.markets.forEach(mercado => {
-                    let tipo = mercado.key === 'h2h' ? 'Moneyline' : mercado.key === 'spreads' ? 'Run Line' : 'Alta / Baja';
-                    mercado.outcomes.forEach(op => {
-                        const prob = calcularProbabilidad(op.price);
-                        const conf = calcularConfianza(prob);
-                        resultados.push({
-                            juego: `${juego.home_team} vs ${juego.away_team}`,
-                            mercado: tipo,
-                            seleccion: op.point ? `${op.name} (${op.point})` : op.name,
-                            cuota: op.price.toFixed(2),
-                            probabilidad: prob.toFixed(1) + '%',
-                            confianza: parseFloat(conf)
-                        });
+        function removerDelCupón(index) {
+            parlayActual.splice(index, 1);
+            renderizarParlayCupón();
+        }
+
+        function renderizarParlayCupón() {
+            const container = document.getElementById('parlay-items-container');
+            container.innerHTML = '';
+            
+            if (parlayActual.length === 0) {
+                document.getElementById('parlay-cuota-total').innerText = "+100";
+                document.getElementById('parlay-probabilidad').innerText = "0%";
+                return;
+            }
+
+            let multiplicadorDecimal = 1;
+            
+            parlayActual.forEach((item, index) => {
+                // Convertir cuota americana a decimal para el cálculo matemático interno
+                let dec = item.cuota > 0 ? (item.cuota / 100) + 1 : (100 / Math.abs(item.cuota)) + 1;
+                multiplicadorDecimal *= dec;
+
+                container.innerHTML += `
+                    <div class="parlay-item" style="border-left-color: ${item.market === 'h2h' ? 'var(--cyan-moneyline)' : item.market === 'spreads' ? 'var(--morado-runline)' : 'var(--naranja-totals)'}">
+                        <div>
+                            <strong>${item.selection}</strong><br>
+                            <span style="font-size:0.75rem; color:var(--texto-mutado)">Cuota: ${item.cuota > 0 ? '+' + item.cuota : item.cuota}</span>
+                        </div>
+                        <span class="eliminar" onclick="removerDelCupón(${index})">✕</span>
+                    </div>
+                `;
+            });
+
+            // Convertir de vuelta de decimal a americana para mostrarla de forma nativa
+            let cuotaAmericanaFinal = 100;
+            if (multiplicadorDecimal >= 2) {
+                cuotaAmericanaFinal = Math.round((multiplicadorDecimal - 1) * 100);
+                cuotaAmericanaFinal = `+${cuotaAmericanaFinal}`;
+            } else {
+                cuotaAmericanaFinal = Math.round(-100 / (multiplicadorDecimal - 1));
+            }
+
+            document.getElementById('parlay-cuota-total').innerText = cuotaAmericanaFinal;
+            // Cálculo estimado aproximado basado en la cuota global
+            let prob = Math.round((1 / multiplicadorDecimal) * 100);
+            document.getElementById('parlay-probabilidad').innerText = `${prob}%`;
+        }
+
+        function guardarParlayParaSeguimiento() {
+            if (parlayActual.length === 0) {
+                alert("Agrega primero logros de los partidos haciendo clic en ellos.");
+                return;
+            }
+            
+            let historial = JSON.parse(localStorage.getItem(PREDICTIONS_KEY) || '[]');
+            
+            parlayActual.forEach(item => {
+                if (!historial.some(p => p.gameId === item.gameId && p.status === 'pendiente')) {
+                    historial.push({
+                        gameId: item.gameId,
+                        market: item.market,
+                        selection: item.selection,
+                        point: item.point,
+                        status: 'pendiente',
+                        fecha: new Date().toISOString().split('T')[0]
                     });
+                }
+            });
+
+            localStorage.setItem(PREDICTIONS_KEY, JSON.stringify(historial));
+            parlayActual = [];
+            renderizarParlayCupón();
+            renderizarEstadisticasBacktesting();
+            alert("¡Predicciones guardadas! El sistema las evaluará automáticamente con resultados reales.");
+            
+            if (API_KEY === 'TU_API_KEY_AQUÍ') {
+                setTimeout(() => {
+                    alert("[Modo Demo] Simulando cierre de jornada: Marcando registros pendientes como ganados/perdidos al azar para ilustrar el funcionamiento.");
+                    simularResultadosDemo();
+                }, 1000);
+            }
+        }
+
+        // SISTEMA DE EVALUACIÓN AUTOMÁTICA (BACKTESTING)
+        async function verificarResultadosAutomaticos() {
+            if (API_KEY === 'TU_API_KEY_AQUÍ' || API_KEY === '') return;
+
+            const prediccionesGuardadas = localStorage.getItem(PREDICTIONS_KEY);
+            if (!prediccionesGuardadas) return;
+            
+            let predicciones = JSON.parse(prediccionesGuardadas);
+            const pendientes = predicciones.filter(p => p.status === 'pendiente');
+            if (pendientes.length === 0) return;
+
+            const url_scores = `https://api.the-odds-api.com/v4/sports/${SPORT}/scores/?daysFrom=3&apiKey=${API_KEY}`;
+            
+            try {
+                const respuesta = await fetch(url_scores);
+                const resultadosActuales = await respuesta.json();
+                let huboCambios = false;
+
+                pendientes.forEach(prediccion => {
+                    const partidoReal = resultadosActuales.find(juego => juego.id === prediccion.gameId);
+                    
+                    if (partidoReal && partidoReal.completed) {
+                        const homeScore = parseInt(partidoReal.scores.find(s => s.name === partidoReal.home_team)?.score || 0);
+                        const awayScore = parseInt(partidoReal.scores.find(s => s.name === partidoReal.away_team)?.score || 0);
+                        let gano = false;
+
+                        if (prediccion.market === 'h2h') {
+                            const ganador = homeScore > awayScore ? partidoReal.home_team : partidoReal.away_team;
+                            gano = prediccion.selection.includes(ganador);
+                        } else if (prediccion.market === 'totals') {
+                            const total = homeScore + awayScore;
+                            gano = total > parseFloat(prediccion.point);
+                        } else if (prediccion.market === 'spreads') {
+                            const handicap = parseFloat(prediccion.point);
+                            if (prediccion.selection.includes(partidoReal.home_team)) {
+                                gano = (homeScore + handicap) > awayScore;
+                            } else {
+                                gano = (awayScore + handicap) > homeScore;
+                            }
+                        }
+
+                        prediccion.status = gano ? 'ganada' : 'perdida';
+                        huboCambios = true;
+                    }
                 });
-            });
-            return resultados.sort((a, b) => b.confianza - a.confianza).slice(0, 15);
+
+                if (huboCambios) {
+                    localStorage.setItem(PREDICTIONS_KEY, JSON.stringify(predicciones));
+                    renderizarEstadisticasBacktesting();
+                }
+            } catch (e) {
+                console.error("Error al procesar el backtesting automático:", e);
+            }
         }
 
-        function renderizarTabla(datos) {
-            const tbody = document.getElementById('cuerpo-tabla');
-            datos.forEach(dato => {
-                let clase = dato.confianza >= 75 ? 'confianza-alta' : dato.confianza >= 60 ? 'confianza-media' : 'confianza-baja';
-                tbody.innerHTML += `<tr>
-                    <td><strong>${dato.juego}</strong></td>
-                    <td>${dato.mercado}</td>
-                    <td>${dato.seleccion}</td>
-                    <td>${dato.cuota}</td>
-                    <td>${dato.probabilidad}</td>
-                    <td class="${clase}">${dato.confianza}%</td>
-                </tr>`;
-            });
+        function renderizarEstadisticasBacktesting() {
+            const prediccionesGuardadas = localStorage.getItem(PREDICTIONS_KEY);
+            const winRateElement = document.getElementById('win-rate-porcentaje');
+            const conteoElement = document.getElementById('win-rate-conteo');
+
+            if (!prediccionesGuardadas) {
+                winRateElement.innerText = "0%";
+                conteoElement.innerText = "0 Ganadas / 0 Evaluadas";
+                return;
+            }
+
+            const historial = JSON.parse(prediccionesGuardadas);
+            const completadas = historial.filter(p => p.status !== 'pendiente');
+            const ganadas = completadas.filter(p => p.status === 'ganada').length;
+            
+            const total = completadas.length;
+            const winRate = total > 0 ? Math.round((ganadas / total) * 100) : 0;
+
+            winRateElement.innerText = `${winRate}%`;
+            conteoElement.innerText = `${ganadas} Ganadas / ${total} Evaluadas`;
+            
+            if (winRate >= 60) winRateElement.style.color = 'var(--verde-exito)';
+            else if (winRate >= 50) winRateElement.style.color = '#f59e0b';
+            else if (total > 0) winRateElement.style.color = 'var(--rojo-error)';
         }
 
-        function generarDatosSimulados() {
+        // FUNCIONES AUXILIARES PARA EL MODO DEMO
+        function simularResultadosDemo() {
+            let actuales = JSON.parse(localStorage.getItem(PREDICTIONS_KEY) || '[]');
+            actuales.forEach(p => {
+                if (p.status === 'pendiente') {
+                    p.status = Math.random() > 0.4 ? 'ganada' : 'perdida'; // 60% probabilidad de acierto simulada
+                }
+            });
+            localStorage.setItem(PREDICTIONS_KEY, JSON.stringify(actuales));
+            renderizarEstadisticasBacktesting();
+        }
+
+        function obtenerDatosSimulados() {
             return [
-                { juego: "Yankees vs Orioles", mercado: "Run Line", seleccion: "Yankees (-1.5)", cuota: "2.10", probabilidad: "47.6%", confianza: 82.4 },
-                { juego: "Dodgers vs Padres", mercado: "Alta / Baja", seleccion: "Alta (8.5)", cuota: "1.90", probabilidad: "52.6%", confianza: 78.1 },
-                { juego: "Braves vs Phillies", mercado: "Moneyline", seleccion: "Braves", cuota: "1.65", probabilidad: "60.6%", confianza: 65.3 }
+                {
+                    id: "demo-game-1",
+                    home_team: "New York Yankees",
+                    away_team: "Detroit Tigers",
+                    commence_time: new Date().toISOString(),
+                    bookmakers: [{
+                        key: "draftkings",
+                        markets: [
+                            { key: "h2h", outcomes: [{ name: "New York Yankees", price: -150 }, { name: "Detroit Tigers", price: +130 }] },
+                            { key: "spreads", outcomes: [{ name: "New York Yankees", price: -110, point: -1.5 }, { name: "Detroit Tigers", price: -110, point: 1.5 }] },
+                            { key: "totals", outcomes: [{ name: "Over", price: -105, point: 8.5 }, { name: "Under", price: -115, point: 8.5 }] }
+                        ]
+                    }]
+                },
+                {
+                    id: "demo-game-2",
+                    home_team: "Los Angeles Dodgers",
+                    away_team: "Minnesota Twins",
+                    commence_time: new Date().toISOString(),
+                    bookmakers: [{
+                        key: "draftkings",
+                        markets: [
+                            { key: "h2h", outcomes: [{ name: "Los Angeles Dodgers", price: -200 }, { name: "Minnesota Twins", price: +170 }] },
+                            { key: "spreads", outcomes: [{ name: "Los Angeles Dodgers", price: +100, point: -1.5 }, { name: "Minnesota Twins", price: -120, point: 1.5 }] },
+                            { key: "totals", outcomes: [{ name: "Over", price: -110, point: 9.0 }, { name: "Under", price: -110, point: 9.0 }] }
+                        ]
+                    }]
+                }
             ];
         }
-
-        window.onload = cargarDatos;
     </script>
 </body>
 </html>
