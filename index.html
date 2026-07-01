@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.I.P.A. Pro - MLB AI Predictor</title>
+    <title>S.I.P.A. Pro v4.0 - Consenso & Filtro Inteligente</title>
     <style>
         :root {
             --bg-principal: #0b0f19;
@@ -14,8 +14,7 @@
             --oro-sugerencia: #eab308;
             --verde-exito: #10b981;
             --rojo-error: #ef4444;
-            --esmeralda-top5: #059669;
-            --glow-top5: rgba(16, 185, 129, 0.15);
+            --glow-top5: rgba(16, 185, 129, 0.2);
         }
 
         * {
@@ -110,7 +109,6 @@
             }
         }
 
-        /* Tarjeta Base de Juego */
         .card-juego {
             background-color: var(--bg-tarjetas);
             border-radius: 10px;
@@ -123,10 +121,10 @@
             position: relative;
         }
 
-        /* Estilo Exclusivo Destacado para las mejores 5 del día */
+        /* Diseño Destacado para el Top 5 Seguro */
         .card-juego.top5-premium {
             border: 2px solid var(--verde-exito);
-            background: linear-gradient(145deg, #132724 0%, #151f32 100%);
+            background: linear-gradient(145deg, #112420 0%, #151f32 100%);
             box-shadow: 0 4px 15px var(--glow-top5);
         }
 
@@ -145,12 +143,13 @@
             padding: 2px 6px;
             border-radius: 4px;
             font-weight: bold;
+            font-size: 0.7rem;
         }
 
         .badge-top5 {
             background: var(--verde-exito);
             color: #0b0f19;
-            padding: 2px 7px;
+            padding: 2px 8px;
             border-radius: 4px;
             font-weight: 800;
             font-size: 0.7rem;
@@ -177,7 +176,7 @@
         }
 
         .card-juego.top5-premium .bloque-sugerencia-automatica {
-            background: rgba(16, 185, 129, 0.03);
+            background: rgba(16, 185, 129, 0.02);
             border: 1px dashed var(--verde-exito);
         }
 
@@ -238,20 +237,20 @@
 <body>
 
     <header>
-        <h1>S.I.P.A. Multi-Odds</h1>
+        <h1>S.I.P.A. Consensus</h1>
         <button class="btn-refresh" onclick="forzarLimpiezaCompleta()">Sincronizar 🔄</button>
     </header>
 
     <div class="panel-rendimiento">
-        <h3>Efectividad Global Automática</h3>
+        <h3>Efectividad Global de Precisión</h3>
         <div class="porcentaje-grande" id="global-winrate">0%</div>
-        <div class="sub-conteo" id="global-conteo">Evaluando líneas de mercado...</div>
+        <div class="sub-conteo" id="global-conteo">Procesando promedios globales de mercado...</div>
     </div>
 
     <div class="seccion-predicciones">
-        <h2>Pizarra de Pronósticos (Ordenados por Probabilidad)</h2>
+        <h2>Pizarra de Pronósticos (Filtro Inteligente -140 a -250)</h2>
         <div class="grid-juegos" id="contenedor-pizarra">
-            <p class="no-data" id="texto-carga">Iniciando S.I.P.A v3.0 Multi-Mercado...</p>
+            <p class="no-data" id="texto-carga">Iniciando S.I.P.A v4.0 Pro...</p>
         </div>
     </div>
 
@@ -260,12 +259,12 @@
         
         const SPORT = 'baseball_mlb';
         const REGIONS = 'us';
-        const MARKETS = 'h2h,spreads,totals'; // Inclusión de Totals (Altas/Bajas)
+        const MARKETS = 'h2h,spreads,totals'; 
         const ODDS_FORMAT = 'american';
 
-        const CACHE_JUEGOS = 'sipa_cache_juegos_v3';
-        const CACHE_TIEMPO = 'sipa_cache_timestamp_v3';
-        const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions_v3';
+        const CACHE_JUEGOS = 'sipa_cache_juegos_v4';
+        const CACHE_TIEMPO = 'sipa_cache_timestamp_v4';
+        const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions_v4';
 
         document.addEventListener('DOMContentLoaded', function() {
             iniciarSistema();
@@ -290,7 +289,7 @@
                 }
 
                 if (cacheValido && partidosGuardados) {
-                    procesarPartidosMultiMercado(partidosGuardados);
+                    procesarConsensoMercado(partidosGuardados);
                     verificarResultados();
                 } else {
                     await descargarDatos();
@@ -304,7 +303,7 @@
 
         async function forzarLimpiezaCompleta() {
             const contenedor = document.getElementById('contenedor-pizarra');
-            contenedor.innerHTML = '<p class="no-data">Sincronizando mercados actualizados...</p>';
+            contenedor.innerHTML = '<p class="no-data">Calculando promedios de consenso...</p>';
             localStorage.removeItem(CACHE_JUEGOS);
             localStorage.removeItem(CACHE_TIEMPO);
             await descargarDatos();
@@ -318,96 +317,114 @@
                 const respuesta = await fetch(url);
                 if (!respuesta.ok) {
                     const datosError = await respuesta.json();
-                    throw new Error(datosError.message || "Error al conectar con la API.");
+                    throw new Error(datosError.message || "Error al conectar con el servidor de cuotas.");
                 }
                 const partidos = await respuesta.json();
 
                 if (!partidos || partidos.length === 0) {
-                    document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">No hay juegos de MLB en curso o programados.</p>';
+                    document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">No hay juegos programados para hoy en la MLB.</p>';
                     return;
                 }
 
                 localStorage.setItem(CACHE_JUEGOS, JSON.stringify(partidos));
                 localStorage.setItem(CACHE_TIEMPO, new Date().getTime().toString());
                 
-                procesarPartidosMultiMercado(partidos);
+                procesarConsensoMercado(partidos);
                 await verificarResultados();
             } catch (error) {
                 mostrarFalloSistema(error.message);
             }
         }
 
-        function procesarPartidosMultiMercado(partidos) {
+        function procesarConsensoMercado(partidos) {
             const contenedor = document.getElementById('contenedor-pizarra');
             contenedor.innerHTML = '';
 
             let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
             let historialPredicciones = prediccionesStr ? JSON.parse(prediccionesStr) : [];
             
-            let listaSugerenciasPorPartido = [];
+            let listaSugerenciasGlobales = [];
 
-            // PASO 1: Analizar todos los mercados y extraer el logro más probable por juego
             partidos.forEach(partido => {
                 if (!partido.bookmakers || partido.bookmakers.length === 0) return;
-                
-                let bookmaker = partido.bookmakers.find(b => b.key === 'draftkings') || partido.bookmakers[0];
-                if (!bookmaker || !bookmaker.markets) return;
 
-                let opcionesDelJuego = [];
+                // Mapa para calcular los promedios de todas las casas del partido
+                let mapaResultados = {};
 
-                // Evaluar Ganador Directo (H2H)
-                let h2h = bookmaker.markets.find(m => m.key === 'h2h');
-                if (h2h && h2h.outcomes) {
-                    h2h.outcomes.forEach(out => {
-                        opcionesDelJuego.push({ market: 'h2h', name: out.name, price: out.price, point: '', label: 'Gana Directo (ML)' });
+                partido.bookmakers.forEach(bookmaker => {
+                    if (!bookmaker.markets) return;
+
+                    bookmaker.markets.forEach(market => {
+                        if (market.key !== 'h2h' && market.key !== 'spreads' && market.key !== 'totals') return;
+
+                        market.outcomes.forEach(out => {
+                            let puntoTexto = out.point !== undefined ? out.point : '';
+                            let llave = `${market.key}_${out.name}_${puntoTexto}`;
+
+                            if (!mapaResultados[llave]) {
+                                let label = '';
+                                if (market.key === 'h2h') label = 'Gana Directo (ML)';
+                                else if (market.key === 'spreads') label = `Hándicap (${out.point > 0 ? '+' : ''}${out.point})`;
+                                else if (market.key === 'totals') label = `Total Carreras (${out.name} ${out.point})`;
+
+                                mapaResultados[llave] = {
+                                    market: market.key,
+                                    name: out.name,
+                                    point: out.point !== undefined ? out.point : '',
+                                    label: label,
+                                    sumaPrecios: 0,
+                                    contadorCasas: 0
+                                };
+                            }
+
+                            mapaResultados[llave].sumaPrecios += out.price;
+                            mapaResultados[llave].contadorCasas++;
+                        });
                     });
-                }
-
-                // Evaluar Hándicap (Spreads)
-                let spreads = bookmaker.markets.find(m => m.key === 'spreads');
-                if (spreads && spreads.outcomes) {
-                    spreads.outcomes.forEach(out => {
-                        opcionesDelJuego.push({ market: 'spreads', name: out.name, price: out.price, point: out.point, label: `Hándicap (${out.point > 0 ? '+' : ''}${out.point})` });
-                    });
-                }
-
-                // Evaluar Altas/Bajas (Totals)
-                let totals = bookmaker.markets.find(m => m.key === 'totals');
-                if (totals && totals.outcomes) {
-                    totals.outcomes.forEach(out => {
-                        opcionesDelJuego.push({ market: 'totals', name: out.name, price: out.price, point: out.point, label: `Total Carreras (${out.name} ${out.point})` });
-                    });
-                }
-
-                if (opcionesDelJuego.length === 0) return;
-
-                // Encontrar el logro con el número americano más bajo/negativo (Mayor certeza teórica)
-                opcionesDelJuego.sort((a, b) => a.price - b.price);
-                let elMasSeguro = opcionesDelJuego[0];
-
-                listaSugerenciasPorPartido.push({
-                    partido: partido,
-                    logro: elMasSeguro
                 });
+
+                // Filtrar las opciones del partido que caen en el "Sweet Spot" (-140 a -250)
+                let opcionesValidasJuego = [];
+                for (let llave in mapaResultados) {
+                    let opt = mapaResultados[llave];
+                    let precioPromedio = Math.round(opt.sumaPrecios / opt.contadorCasas);
+
+                    // FILTRO SWEET SPOT: Selecciona cuotas seguras sin caer en extremos improductivos
+                    if (precioPromedio <= -140 && precioPromedio >= -250) {
+                        opcionesValidasJuego.push({
+                            market: opt.market,
+                            name: opt.name,
+                            point: opt.point,
+                            label: opt.label,
+                            price: precioPromedio
+                        });
+                    }
+                }
+
+                // Si hay opciones perfectas en el juego, tomamos la de mayor probabilidad (la más negativa)
+                if (opcionesValidasJuego.length > 0) {
+                    opcionesValidasJuego.sort((a, b) => a.price - b.price);
+                    listaSugerenciasGlobales.push({
+                        partido: partido,
+                        logro: opcionesValidasJuego[0]
+                    });
+                }
             });
 
-            if (listaSugerenciasPorPartido.length === 0) {
-                contenedor.innerHTML = '<p class="no-data">No se hallaron cuotas legibles para procesar hoy.</p>';
+            if (listaSugerenciasGlobales.length === 0) {
+                contenedor.innerHTML = '<p class="no-data">Filtro de Precisión Activo: Hoy ningún juego cumple con el rango de seguridad óptimo (-140 a -250) en el consenso general.</p>';
                 return;
             }
 
-            // PASO 2: Ordenar toda la pizarra global por nivel de probabilidad/certeza
-            listaSugerenciasPorPartido.sort((a, b) => a.logro.price - b.logro.price);
+            // Ordenar de forma global por cuota promedio más segura (las de mayor probabilidad primero)
+            listaSugerenciasGlobales.sort((a, b) => a.logro.price - b.logro.price);
 
-            // PASO 3: Renderizar aplicando distinción estética a los TOP 5 globales
-            listaSugerenciasPorPartido.forEach((item, index) => {
+            // Pintar tarjetas marcando el Top 5 exclusivo
+            listaSugerenciasGlobales.forEach((item, index) => {
                 let partido = item.partido;
                 let logroSeleccionado = item.logro;
-                
-                // Determinamos si entra en el selecto grupo de los 5 más probables de la jornada
                 let esTop5 = (index < 5); 
 
-                // Registro seguro en base histórica
                 let existe = historialPredicciones.some(p => p.gameId === partido.id);
                 if (!existe) {
                     historialPredicciones.push({
@@ -422,12 +439,10 @@
                 let fechaObj = new Date(partido.commence_time);
                 let horaFormateada = fechaObj.getHours() + ':' + (fechaObj.getMinutes() < 10 ? '0' : '') + fechaObj.getMinutes();
 
-                let signoCuota = logroSeleccionado.price > 0 ? '+' : '';
-
                 let htmlTarjeta = `
                     <div class="card-juego ${esTop5 ? 'top5-premium' : ''}">
                         <div class="card-header">
-                            <span class="${esTop5 ? 'badge-top5' : 'badge-sistema'}">${esTop5 ? '🔥 TOP 5 SEGURO' : 'SELECCIÓN IA'}</span>
+                            <span class="${esTop5 ? 'badge-top5' : 'badge-sistema'}">${esTop5 ? '🔥 TOP 5 SEGURO' : 'CONSENSO GLOBAL'}</span>
                             <span>${horaFormateada}</span>
                         </div>
                         <div class="duelo-equipos">
@@ -439,7 +454,7 @@
                                 <span class="tag-tipo-logro">${logroSeleccionado.label}</span>
                                 <span class="seleccion-texto">${logroSeleccionado.name}</span>
                             </div>
-                            <div class="cuota-valor">${signoCuota}${logroSeleccionado.price}</div>
+                            <div class="cuota-valor">${logroSeleccionado.price} (Avg)</div>
                         </div>
                     </div>
                 `;
@@ -511,26 +526,4 @@
                     actualizarDashboard();
                 }
             } catch (e) {
-                console.log("Auditoría en espera de cierre de partidos.");
-            }
-        }
-
-        function actualizarDashboard() {
-            let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
-            if (!prediccionesStr) return;
-
-            let historial = JSON.parse(prediccionesStr);
-            let total = 0;
-            let ganadas = 0;
-
-            historial.forEach(p => {
-                if (p.status !== 'pendiente') {
-                    total++;
-                    if (p.status === 'ganada') ganadas++;
-                }
-            });
-
-            let porcentaje = total > 0 ? Math.round((ganadas / total) * 100) : 0;
-
-            document.getElementById('global-winrate').innerText = porcentaje + '%';
-            doc
+                cons
