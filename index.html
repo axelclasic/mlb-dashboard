@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.I.P.A. - MLB AI Predictor</title>
+    <title>S.I.P.A. Pro - MLB AI Predictor</title>
     <style>
         :root {
             --bg-principal: #0b0f19;
@@ -14,6 +14,8 @@
             --oro-sugerencia: #eab308;
             --verde-exito: #10b981;
             --rojo-error: #ef4444;
+            --esmeralda-top5: #059669;
+            --glow-top5: rgba(16, 185, 129, 0.15);
         }
 
         * {
@@ -108,15 +110,24 @@
             }
         }
 
+        /* Tarjeta Base de Juego */
         .card-juego {
             background-color: var(--bg-tarjetas);
             border-radius: 10px;
             padding: 14px;
-            border: 1px solid transparent;
+            border: 1px solid var(--bg-interacciones);
             box-shadow: 0 2px 5px rgba(0,0,0,0.15);
             display: flex;
             flex-direction: column;
             gap: 10px;
+            position: relative;
+        }
+
+        /* Estilo Exclusivo Destacado para las mejores 5 del día */
+        .card-juego.top5-premium {
+            border: 2px solid var(--verde-exito);
+            background: linear-gradient(145deg, #132724 0%, #151f32 100%);
+            box-shadow: 0 4px 15px var(--glow-top5);
         }
 
         .card-header {
@@ -136,6 +147,16 @@
             font-weight: bold;
         }
 
+        .badge-top5 {
+            background: var(--verde-exito);
+            color: #0b0f19;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-weight: 800;
+            font-size: 0.7rem;
+            letter-spacing: 0.3px;
+        }
+
         .duelo-equipos {
             font-size: 0.95rem;
             font-weight: 600;
@@ -146,13 +167,18 @@
 
         .bloque-sugerencia-automatica {
             margin-top: 5px;
-            background: rgba(234, 179, 8, 0.04);
+            background: rgba(234, 179, 8, 0.02);
             border: 1px dashed var(--oro-sugerencia);
             border-radius: 8px;
             padding: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        .card-juego.top5-premium .bloque-sugerencia-automatica {
+            background: rgba(16, 185, 129, 0.03);
+            border: 1px dashed var(--verde-exito);
         }
 
         .info-sugerencia {
@@ -168,6 +194,10 @@
             margin-bottom: 2px;
         }
 
+        .card-juego.top5-premium .tag-tipo-logro {
+            color: var(--verde-exito);
+        }
+
         .seleccion-texto {
             font-size: 0.85rem;
             font-weight: 600;
@@ -180,6 +210,11 @@
             color: #000000;
             padding: 3px 8px;
             border-radius: 4px;
+        }
+
+        .card-juego.top5-premium .cuota-valor {
+            background: var(--verde-exito);
+            color: #0b0f19;
         }
 
         .no-data {
@@ -203,35 +238,34 @@
 <body>
 
     <header>
-        <h1>S.I.P.A. MLB</h1>
+        <h1>S.I.P.A. Multi-Odds</h1>
         <button class="btn-refresh" onclick="forzarLimpiezaCompleta()">Sincronizar 🔄</button>
     </header>
 
     <div class="panel-rendimiento">
-        <h3>Efectividad Actual del Algoritmo</h3>
+        <h3>Efectividad Global Automática</h3>
         <div class="porcentaje-grande" id="global-winrate">0%</div>
-        <div class="sub-conteo" id="global-conteo">Evaluando sistema...</div>
+        <div class="sub-conteo" id="global-conteo">Evaluando líneas de mercado...</div>
     </div>
 
     <div class="seccion-predicciones">
-        <h2>Sugerencias de Alta Probabilidad (Hoy)</h2>
+        <h2>Pizarra de Pronósticos (Ordenados por Probabilidad)</h2>
         <div class="grid-juegos" id="contenedor-pizarra">
-            <p class="no-data" id="texto-carga">Iniciando S.I.P.A v2.0...</p>
+            <p class="no-data" id="texto-carga">Iniciando S.I.P.A v3.0 Multi-Mercado...</p>
         </div>
     </div>
 
     <script>
-        // API KEY INCRUSTADA DIRECTAMENTE
         const API_KEY = 'b55dc1db9b4f0aea7bdd5100a9952c00'; 
         
         const SPORT = 'baseball_mlb';
         const REGIONS = 'us';
-        const MARKETS = 'h2h,spreads';
+        const MARKETS = 'h2h,spreads,totals'; // Inclusión de Totals (Altas/Bajas)
         const ODDS_FORMAT = 'american';
 
-        const CACHE_JUEGOS = 'sipa_cache_juegos_v2';
-        const CACHE_TIEMPO = 'sipa_cache_timestamp_v2';
-        const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions_v2';
+        const CACHE_JUEGOS = 'sipa_cache_juegos_v3';
+        const CACHE_TIEMPO = 'sipa_cache_timestamp_v3';
+        const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions_v3';
 
         document.addEventListener('DOMContentLoaded', function() {
             iniciarSistema();
@@ -256,7 +290,7 @@
                 }
 
                 if (cacheValido && partidosGuardados) {
-                    procesarPartidos(partidosGuardados);
+                    procesarPartidosMultiMercado(partidosGuardados);
                     verificarResultados();
                 } else {
                     await descargarDatos();
@@ -270,7 +304,7 @@
 
         async function forzarLimpiezaCompleta() {
             const contenedor = document.getElementById('contenedor-pizarra');
-            contenedor.innerHTML = '<p class="no-data">Sincronizando con los servidores...</p>';
+            contenedor.innerHTML = '<p class="no-data">Sincronizando mercados actualizados...</p>';
             localStorage.removeItem(CACHE_JUEGOS);
             localStorage.removeItem(CACHE_TIEMPO);
             await descargarDatos();
@@ -284,71 +318,97 @@
                 const respuesta = await fetch(url);
                 if (!respuesta.ok) {
                     const datosError = await respuesta.json();
-                    throw new Error(datosError.message || "Error en la conexión con la API de apuestas.");
+                    throw new Error(datosError.message || "Error al conectar con la API.");
                 }
                 const partidos = await respuesta.json();
 
                 if (!partidos || partidos.length === 0) {
-                    document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">No hay juegos listados para hoy.</p>';
+                    document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">No hay juegos de MLB en curso o programados.</p>';
                     return;
                 }
 
                 localStorage.setItem(CACHE_JUEGOS, JSON.stringify(partidos));
                 localStorage.setItem(CACHE_TIEMPO, new Date().getTime().toString());
                 
-                procesarPartidos(partidos);
+                procesarPartidosMultiMercado(partidos);
                 await verificarResultados();
             } catch (error) {
                 mostrarFalloSistema(error.message);
             }
         }
 
-        function procesarPartidos(partidos) {
+        function procesarPartidosMultiMercado(partidos) {
             const contenedor = document.getElementById('contenedor-pizarra');
             contenedor.innerHTML = '';
 
             let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
             let historialPredicciones = prediccionesStr ? JSON.parse(prediccionesStr) : [];
-            let contadorEncontrados = 0;
+            
+            let listaSugerenciasPorPartido = [];
 
-            for (let i = 0; i < partidos.length; i++) {
-                let partido = partidos[i];
-
-                if (!partido.bookmakers || partido.bookmakers.length === 0) continue;
+            // PASO 1: Analizar todos los mercados y extraer el logro más probable por juego
+            partidos.forEach(partido => {
+                if (!partido.bookmakers || partido.bookmakers.length === 0) return;
                 
-                let bookmaker = partido.bookmakers.find(b => b.key === 'draftkings');
-                if (!bookmaker) bookmaker = partido.bookmakers[0];
+                let bookmaker = partido.bookmakers.find(b => b.key === 'draftkings') || partido.bookmakers[0];
+                if (!bookmaker || !bookmaker.markets) return;
 
-                if (!bookmaker || !bookmaker.markets) continue;
+                let opcionesDelJuego = [];
 
-                let opciones = [];
-
+                // Evaluar Ganador Directo (H2H)
                 let h2h = bookmaker.markets.find(m => m.key === 'h2h');
                 if (h2h && h2h.outcomes) {
-                    for (let j = 0; j < h2h.outcomes.length; j++) {
-                        let out = h2h.outcomes[j];
-                        if (out.price < 0) {
-                            opciones.push({ market: 'h2h', name: out.name, price: out.price, point: '' });
-                        }
-                    }
+                    h2h.outcomes.forEach(out => {
+                        opcionesDelJuego.push({ market: 'h2h', name: out.name, price: out.price, point: '', label: 'Gana Directo (ML)' });
+                    });
                 }
 
-                if (opciones.length === 0) continue;
-
-                // Ordenar para buscar el más seguro (el número negativo más grande, ej: -200 es mejor que -110)
-                opciones.sort((a, b) => a.price - b.price);
-                let logroSeleccionado = opciones[0];
-
-                contadorEncontrados++;
-
-                let existe = false;
-                for (let k = 0; k < historialPredicciones.length; k++) {
-                    if (historialPredicciones[k].gameId === partido.id) {
-                        existe = true;
-                        break;
-                    }
+                // Evaluar Hándicap (Spreads)
+                let spreads = bookmaker.markets.find(m => m.key === 'spreads');
+                if (spreads && spreads.outcomes) {
+                    spreads.outcomes.forEach(out => {
+                        opcionesDelJuego.push({ market: 'spreads', name: out.name, price: out.price, point: out.point, label: `Hándicap (${out.point > 0 ? '+' : ''}${out.point})` });
+                    });
                 }
 
+                // Evaluar Altas/Bajas (Totals)
+                let totals = bookmaker.markets.find(m => m.key === 'totals');
+                if (totals && totals.outcomes) {
+                    totals.outcomes.forEach(out => {
+                        opcionesDelJuego.push({ market: 'totals', name: out.name, price: out.price, point: out.point, label: `Total Carreras (${out.name} ${out.point})` });
+                    });
+                }
+
+                if (opcionesDelJuego.length === 0) return;
+
+                // Encontrar el logro con el número americano más bajo/negativo (Mayor certeza teórica)
+                opcionesDelJuego.sort((a, b) => a.price - b.price);
+                let elMasSeguro = opcionesDelJuego[0];
+
+                listaSugerenciasPorPartido.push({
+                    partido: partido,
+                    logro: elMasSeguro
+                });
+            });
+
+            if (listaSugerenciasPorPartido.length === 0) {
+                contenedor.innerHTML = '<p class="no-data">No se hallaron cuotas legibles para procesar hoy.</p>';
+                return;
+            }
+
+            // PASO 2: Ordenar toda la pizarra global por nivel de probabilidad/certeza
+            listaSugerenciasPorPartido.sort((a, b) => a.logro.price - b.logro.price);
+
+            // PASO 3: Renderizar aplicando distinción estética a los TOP 5 globales
+            listaSugerenciasPorPartido.forEach((item, index) => {
+                let partido = item.partido;
+                let logroSeleccionado = item.logro;
+                
+                // Determinamos si entra en el selecto grupo de los 5 más probables de la jornada
+                let esTop5 = (index < 5); 
+
+                // Registro seguro en base histórica
+                let existe = historialPredicciones.some(p => p.gameId === partido.id);
                 if (!existe) {
                     historialPredicciones.push({
                         gameId: partido.id,
@@ -363,13 +423,11 @@
                 let horaFormateada = fechaObj.getHours() + ':' + (fechaObj.getMinutes() < 10 ? '0' : '') + fechaObj.getMinutes();
 
                 let signoCuota = logroSeleccionado.price > 0 ? '+' : '';
-                let signoPunto = logroSeleccionado.point > 0 ? '+' : '';
-                let textoPunto = logroSeleccionado.point !== '' ? ' ' + signoPunto + logroSeleccionado.point : '';
 
                 let htmlTarjeta = `
-                    <div class="card-juego">
+                    <div class="card-juego ${esTop5 ? 'top5-premium' : ''}">
                         <div class="card-header">
-                            <span class="badge-sistema">SELECCIÓN IA</span>
+                            <span class="${esTop5 ? 'badge-top5' : 'badge-sistema'}">${esTop5 ? '🔥 TOP 5 SEGURO' : 'SELECCIÓN IA'}</span>
                             <span>${horaFormateada}</span>
                         </div>
                         <div class="duelo-equipos">
@@ -378,19 +436,15 @@
                         </div>
                         <div class="bloque-sugerencia-automatica">
                             <div class="info-sugerencia">
-                                <span class="tag-tipo-logro">GANA DIRECTO (ML)</span>
-                                <span class="seleccion-texto">${logroSeleccionado.name}${textoPunto}</span>
+                                <span class="tag-tipo-logro">${logroSeleccionado.label}</span>
+                                <span class="seleccion-texto">${logroSeleccionado.name}</span>
                             </div>
                             <div class="cuota-valor">${signoCuota}${logroSeleccionado.price}</div>
                         </div>
                     </div>
                 `;
                 contenedor.innerHTML += htmlTarjeta;
-            }
-
-            if (contadorEncontrados === 0) {
-                contenedor.innerHTML = '<p class="no-data">Analizando los datos disponibles: No se encontraron cuotas seguras en este momento.</p>';
-            }
+            });
 
             localStorage.setItem(REGISTRO_PREDICCIONES, JSON.stringify(historialPredicciones));
         }
@@ -400,11 +454,7 @@
             if (!prediccionesStr) return;
             
             let predicciones = JSON.parse(prediccionesStr);
-            let hayPendientes = false;
-            
-            for (let i = 0; i < predicciones.length; i++) {
-                if (predicciones[i].status === 'pendiente') hayPendientes = true;
-            }
+            let hayPendientes = predicciones.some(p => p.status === 'pendiente');
 
             if (!hayPendientes) return;
 
@@ -417,9 +467,8 @@
 
                 if (!Array.isArray(scores)) return;
 
-                for (let i = 0; i < predicciones.length; i++) {
-                    let pred = predicciones[i];
-                    if (pred.status !== 'pendiente') continue;
+                predicciones.forEach(pred => {
+                    if (pred.status !== 'pendiente') return;
 
                     let juego = scores.find(s => s.id === pred.gameId);
                     if (juego && juego.completed && juego.scores) {
@@ -430,21 +479,39 @@
                         let homeScore = homeData ? parseInt(homeData.score) : 0;
                         let awayScore = awayData ? parseInt(awayData.score) : 0;
                         
-                        let ganadorReal = homeScore > awayScore ? juego.home_team : juego.away_team;
-                        
                         if (pred.market === 'h2h') {
+                            let ganadorReal = homeScore > awayScore ? juego.home_team : juego.away_team;
                             pred.status = (pred.selection === ganadorReal) ? 'ganada' : 'perdida';
+                            cambios = true;
+                        } 
+                        else if (pred.market === 'spreads') {
+                            let ventaja = parseFloat(pred.point);
+                            if (pred.selection === juego.home_team) {
+                                pred.status = ((homeScore + ventaja) > awayScore) ? 'ganada' : 'perdida';
+                            } else {
+                                pred.status = ((awayScore + ventaja) > homeScore) ? 'ganada' : 'perdida';
+                            }
+                            cambios = true;
+                        } 
+                        else if (pred.market === 'totals') {
+                            let carrerasTotales = homeScore + awayScore;
+                            let lineaFija = parseFloat(pred.point);
+                            if (pred.selection.toLowerCase() === 'over') {
+                                pred.status = (carrerasTotales > lineaFija) ? 'ganada' : 'perdida';
+                            } else if (pred.selection.toLowerCase() === 'under') {
+                                pred.status = (carrerasTotales < lineaFija) ? 'ganada' : 'perdida';
+                            }
                             cambios = true;
                         }
                     }
-                }
+                });
 
                 if (cambios) {
                     localStorage.setItem(REGISTRO_PREDICCIONES, JSON.stringify(predicciones));
                     actualizarDashboard();
                 }
             } catch (e) {
-                console.log("No se pudo auditar resultados todavía.");
+                console.log("Auditoría en espera de cierre de partidos.");
             }
         }
 
@@ -456,28 +523,14 @@
             let total = 0;
             let ganadas = 0;
 
-            for (let i = 0; i < historial.length; i++) {
-                if (historial[i].status !== 'pendiente') {
+            historial.forEach(p => {
+                if (p.status !== 'pendiente') {
                     total++;
-                    if (historial[i].status === 'ganada') ganadas++;
+                    if (p.status === 'ganada') ganadas++;
                 }
-            }
+            });
 
             let porcentaje = total > 0 ? Math.round((ganadas / total) * 100) : 0;
 
             document.getElementById('global-winrate').innerText = porcentaje + '%';
-            document.getElementById('global-conteo').innerText = ganadas + ' Acertadas / ' + total + ' Evaluadas';
-        }
-
-        function mostrarFalloSistema(mensajeError) {
-            document.getElementById('contenedor-pizarra').innerHTML = `
-                <div class="error-texto">
-                    <strong>⚠️ ERROR DEL SISTEMA:</strong><br><br>
-                    ${mensajeError}<br><br>
-                    Verifica tus créditos en The Odds API.
-                </div>
-            `;
-        }
-    </script>
-</body>
-</html>
+            doc
