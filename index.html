@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.I.P.A. Pro v4.0 - Consenso & Filtro Inteligente</title>
+    <title>S.I.P.A. Pro v4.1 - Consenso Avanzado</title>
     <style>
         :root {
             --bg-principal: #0b0f19;
@@ -121,7 +121,6 @@
             position: relative;
         }
 
-        /* Diseño Destacado para el Top 5 Seguro */
         .card-juego.top5-premium {
             border: 2px solid var(--verde-exito);
             background: linear-gradient(145deg, #112420 0%, #151f32 100%);
@@ -242,7 +241,7 @@
     </header>
 
     <div class="panel-rendimiento">
-        <h3>Efectividad Global de Precisión</h3>
+        <h3>Efectividad Global de Precision</h3>
         <div class="porcentaje-grande" id="global-winrate">0%</div>
         <div class="sub-conteo" id="global-conteo">Procesando promedios globales de mercado...</div>
     </div>
@@ -250,7 +249,7 @@
     <div class="seccion-predicciones">
         <h2>Pizarra de Pronósticos (Filtro Inteligente -140 a -250)</h2>
         <div class="grid-juegos" id="contenedor-pizarra">
-            <p class="no-data" id="texto-carga">Iniciando S.I.P.A v4.0 Pro...</p>
+            <p class="no-data" id="texto-carga">Iniciando S.I.P.A v4.1 Pro...</p>
         </div>
     </div>
 
@@ -266,9 +265,12 @@
         const CACHE_TIEMPO = 'sipa_cache_timestamp_v4';
         const REGISTRO_PREDICCIONES = 'sipa_sistema_predictions_v4';
 
-        document.addEventListener('DOMContentLoaded', function() {
+        // GATILLO DE DOBLE SEGURIDAD: Si la página ya cargó, arranca inmediatamente sin esperar evento
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', iniciarSistema);
+        } else {
             iniciarSistema();
-        });
+        }
 
         async function iniciarSistema() {
             try {
@@ -303,7 +305,7 @@
 
         async function forzarLimpiezaCompleta() {
             const contenedor = document.getElementById('contenedor-pizarra');
-            contenedor.innerHTML = '<p class="no-data">Calculando promedios de consenso...</p>';
+            if(contenedor) contenedor.innerHTML = '<p class="no-data">Calculando promedios de consenso...</p>';
             localStorage.removeItem(CACHE_JUEGOS);
             localStorage.removeItem(CACHE_TIEMPO);
             await descargarDatos();
@@ -322,7 +324,8 @@
                 const partidos = await respuesta.json();
 
                 if (!partidos || partidos.length === 0) {
-                    document.getElementById('contenedor-pizarra').innerHTML = '<p class="no-data">No hay juegos programados para hoy en la MLB.</p>';
+                    const contenedor = document.getElementById('contenedor-pizarra');
+                    if(contenedor) contenedor.innerHTML = '<p class="no-data">No hay juegos programados para hoy en la MLB.</p>';
                     return;
                 }
 
@@ -338,6 +341,7 @@
 
         function procesarConsensoMercado(partidos) {
             const contenedor = document.getElementById('contenedor-pizarra');
+            if(!contenedor) return;
             contenedor.innerHTML = '';
 
             let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
@@ -348,7 +352,6 @@
             partidos.forEach(partido => {
                 if (!partido.bookmakers || partido.bookmakers.length === 0) return;
 
-                // Mapa para calcular los promedios de todas las casas del partido
                 let mapaResultados = {};
 
                 partido.bookmakers.forEach(bookmaker => {
@@ -383,13 +386,11 @@
                     });
                 });
 
-                // Filtrar las opciones del partido que caen en el "Sweet Spot" (-140 a -250)
                 let opcionesValidasJuego = [];
                 for (let llave in mapaResultados) {
                     let opt = mapaResultados[llave];
                     let precioPromedio = Math.round(opt.sumaPrecios / opt.contadorCasas);
 
-                    // FILTRO SWEET SPOT: Selecciona cuotas seguras sin caer en extremos improductivos
                     if (precioPromedio <= -140 && precioPromedio >= -250) {
                         opcionesValidasJuego.push({
                             market: opt.market,
@@ -401,7 +402,6 @@
                     }
                 }
 
-                // Si hay opciones perfectas en el juego, tomamos la de mayor probabilidad (la más negativa)
                 if (opcionesValidasJuego.length > 0) {
                     opcionesValidasJuego.sort((a, b) => a.price - b.price);
                     listaSugerenciasGlobales.push({
@@ -416,10 +416,8 @@
                 return;
             }
 
-            // Ordenar de forma global por cuota promedio más segura (las de mayor probabilidad primero)
             listaSugerenciasGlobales.sort((a, b) => a.logro.price - b.logro.price);
 
-            // Pintar tarjetas marcando el Top 5 exclusivo
             listaSugerenciasGlobales.forEach((item, index) => {
                 let partido = item.partido;
                 let logroSeleccionado = item.logro;
@@ -526,4 +524,14 @@
                     actualizarDashboard();
                 }
             } catch (e) {
-                cons
+                console.log("Esperando datos de partidos.");
+            }
+        }
+
+        function actualizarDashboard() {
+            let prediccionesStr = localStorage.getItem(REGISTRO_PREDICCIONES);
+            if (!prediccionesStr) return;
+
+            let historial = JSON.parse(prediccionesStr);
+            let total = 0;
+           
